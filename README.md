@@ -53,9 +53,9 @@ $PSVersionTable.PSVersion
 ### **Step 1: Snag the Goods!**  
 **Clone or Swipe:**  
 ```bash
-git clone https://github.com/chaos2024/PCTurboBoost.git
+git clone https://github.com/chaos2040/PCTurboBoost.git
 ```  
-Or zip over to the [Releases Page](https://github.com/chaos2024/PCTurboBoost) for **PCTurboBoost.ps1**!  
+Or zip over to the [Releases Page](https://github.com/chaos2040/PCTurboBoost/releases) for **PCTurboBoost.ps1**!  
 
 ### **Step 2: Unleash the Power (Optional)**  
 If PowerShell’s locked down, bust it open:  
