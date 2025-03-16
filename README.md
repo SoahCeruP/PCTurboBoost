@@ -154,7 +154,7 @@ Tweak `config.json` to pick your app purge. No file? We’ve got you *(non-porta
   ```
 - **📬 Share It:** Open a **Pull Request**!  
 
-Got sparks or snags? Toss ‘em in [Issues](https://github.com/chaos2024/PCTurboBoost/issues) — we’re all ears!  
+Got sparks or snags? Toss ‘em in [Issues](https://github.com/chaos2040/PCTurboBoost/issues) — we’re all ears!  
 
 ---
 
