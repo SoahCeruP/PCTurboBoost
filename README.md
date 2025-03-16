@@ -55,7 +55,7 @@ $PSVersionTable.PSVersion
 ```bash
 git clone https://github.com/chaos2024/PCTurboBoost.git
 ```  
-Or zip over to the [Releases Page](https://github.com/chaos2024/PCTurboBoost/releases) for **PCTurboBoost.ps1**!  
+Or zip over to the [Releases Page](https://github.com/chaos2024/PCTurboBoost) for **PCTurboBoost.ps1**!  
 
 ### **Step 2: Unleash the Power (Optional)**  
 If PowerShell’s locked down, bust it open:  
@@ -73,7 +73,7 @@ Kick it into gear:
 .\PCTurboBoost.ps1 [-Verbose] [-OutputPath "C:\Path"] [-ConfigFile "custom.json"] [-Portable] [-Silent]
 ```
 
-### **✅ Command Flags:**  
+### **Command Flags:**  
 - 🔈 **`-Verbose`** → Get the full scoop in real-time.  
 - 📁 **`-OutputPath`** → Stash logs where you want *(default: script folder)*.  
 - 📃 **`-ConfigFile`** → Roll with your own app zap list *(default: `config.json`)*.  
