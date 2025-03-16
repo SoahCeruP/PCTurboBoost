@@ -1,45 +1,44 @@
-# PCTurboBoost 🚀 
+### PCTurboBoost 🚀 
 PowerShell Windows License
 PCTurboBoost is a PowerShell script designed to optimize and turbocharge your Windows PC by improving performance, removing unnecessary applications, and repairing system issues. It provides a user-friendly interface with modular functions to enhance system health, making it ideal for both casual users and power users.
 
-# Features ✨
+## Features ✨
 🔬 System Diagnostics: Analyze CPU, disk, and RAM usage to assess system health.
 
-- ***Performance Optimization:***
+***Performance Optimization:*** 🏎️
 - Adjust registry settings for better performance and privacy.
 - Disable unnecessary startup programs and animations.
 - Set the power plan to High Performance.
 - Stop non-essential background services.
-- ***Application Removal: ***
+***Application Removal:*** 🧼
 - Uninstall pre-configured or user-selected Windows Store apps.
-- *** Disk Cleanup:*** Remove temporary files and  optimize the C: drive.
-- *** System Repair: ***
+*** Disk Cleanup:*** 🧹
+- Remove temporary files and  optimize the C: drive.
+***System Repair:*** ⛑️
 - Fix system files, Windows Update issues, and disk errors.
-- *** Portable Mode: ***
+***Portable Mode:*** 🧳
 - Run without permanent changes to the system (default).
-- *** Logging:***
+- ***Logging:*** 👓
 - Generate detailed reports and audit logs for transparency.
-- *** Silent Mode: ***
+***Silent Mode:*** 🛸
 - Automate tasks without user prompts for scripting.
 
-# Prerequisites 
+# Prerequisites 🧩
 Operating System: Windows 10 or 11
 PowerShell: Version 5.1 or later (pre-installed on Windows 10/11)
 ***Administrative Privileges: Required for most operations***
-
-To check your PowerShell version:
+```To check your PowerShell version:
 powershell
-$PSVersionTable.PSVersion
+$PSVersionTable.PSVersion```
 
-# Installation
-Download the Script:
+# Installation ⬇️
 Clone the repository or download the ZIP file from GitHub:
 bash
 ```git clone https://github.com/chaos2024/PCTurboBoost.git```
 
 Alternatively, download PCTurboBoost.ps1 directly from the Releases page.
 
-**Execution Policy (Optional):**
+***Execution Policy (Optional):***
 If your system’s PowerShell execution policy is Restricted, the script will prompt to set it to Bypass for the current user. Alternatively, run this manually:
 powershell
 ```Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force```
@@ -73,7 +72,7 @@ Type help in the menu for detailed instructions.```
 The script uses a config.json file to manage the list of apps to remove. If it doesn’t exist, a default list is created (non-portable mode only). Edit it manually or use the "Configure Apps" menu option.
 Default config.json:
 json
-
+```
 {
   "AppsToRemove": [
     "Microsoft.SkypeApp", "Microsoft.Teams", "Microsoft.XboxApp", "Microsoft.MixedReality.Portal",
@@ -83,8 +82,9 @@ json
     "Microsoft.Getstarted", "Microsoft.Messaging", "Microsoft.WindowsCamera"
   ]
 }
+```
 
-Output
+***Output***
 Report File: TurboBoost_Report_YYYYMMDD_HHMMSS.txt (non-portable mode only)
 Audit Log: TurboBoost_Audit_YYYYMMDD_HHMMSS.log (detailed actions)
 Portable Mode: Logs are saved to %TEMP%\PCTurboBoost.
