@@ -95,7 +95,7 @@ Kick it into gear:
 - **🔧 Fix It** → Patch up your PC.  
 - **👋 Bounce** → See ya later!  
 
-💡 Drop a `help` in the menu for insider tricks!  
+Drop a `help` in the menu for insider tricks!  
 
 ---
 
