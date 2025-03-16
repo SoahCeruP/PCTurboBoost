@@ -43,43 +43,68 @@
 
 **Check Your PowerShell Version:**  
 ```powershell
-$PSVersionTable.PSVersion
-⬇️ Launch It Like a Pro
-Step 1: Snag the Goods!
-Clone or Swipe:  
-bash
+$PSVersionTable.PSVersion  
+
+---
+
+## **🔥 Launch It Like a Pro**  
+
+### **Step 1: Snag the Goods!**  
+**Clone or Swipe:**  
+```bash
 git clone https://github.com/chaos2024/PCTurboBoost.git
-Or zip over to the Releases page for PCTurboBoost.ps1!  
-Step 2: Unleash the Power (Optional)
+```  
+Or zip over to the [Releases Page](https://github.com/chaos2024/PCTurboBoost/releases) for **PCTurboBoost.ps1**!  
+
+### **Step 2: Unleash the Power (Optional)**  
 If PowerShell’s locked down, bust it open:  
-powershell
+```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
-🎮 Take the Wheel
-Blast Off with Commands!
+```
+
+---
+
+## **🎮 Take the Wheel**  
+
+### **Blast Off with Commands!**  
 Kick it into gear:  
-powershell
+```powershell
 .\PCTurboBoost.ps1 [-Verbose] [-OutputPath "C:\Path"] [-ConfigFile "custom.json"] [-Portable] [-Silent]
-🔊 -Verbose: Get the full scoop in real-time.  
-📂 -OutputPath: Stash logs where you want (default: script folder).  
-📝 -ConfigFile: Roll with your own app zap list (default: config.json).  
-🌌 -Portable: Leave no trace—logs hit %TEMP%\PCTurboBoost.  
-🤫 -Silent: Full auto-pilot, no chit-chat!
-Turbo Example:  
-powershell
+```
+
+### **✅ Command Flags:**  
+- 🔈 **`-Verbose`** → Get the full scoop in real-time.  
+- 📁 **`-OutputPath`** → Stash logs where you want *(default: script folder)*.  
+- 📃 **`-ConfigFile`** → Roll with your own app zap list *(default: `config.json`)*.  
+- 🌆 **`-Portable`** → Leave no trace—logs hit `%TEMP%\PCTurboBoost`.  
+- 🤫 **`-Silent`** → Full autopilot, no chit-chat!  
+
+### **🚀 Turbo Example:**  
+```powershell
 .\PCTurboBoost.ps1 -Verbose -Silent
-Menu Mode: You’re the Boss!
-🔎 Scan It: Peek at system vitals.  
-⚡ Juice It: Crank up the speed.  
-🗑️ Trash It: Axe those apps.  
-🎨 Tweak It: Build your app hitlist.  
-🛠️ Fix It: Patch up your PC.  
-✌️ Bounce: See ya later!
-Drop a help in the menu for insider tricks!
-⚙️ Customize Your Ride
-Tune Your Targets!
-Tweak config.json to pick your app purge. No file? We’ve got you (non-portable mode).
-Default Hitlist:  
-json
+```
+
+---
+
+## **🎛️ Menu Mode: You’re the Boss!**  
+- **🔍 Scan It** → Peek at system vitals.  
+- **⚡ Juice It** → Crank up the speed.  
+- **🗑️ Trash It** → Axe those apps.  
+- **🛠️ Tweak It** → Build your app hitlist.  
+- **🔧 Fix It** → Patch up your PC.  
+- **👋 Bounce** → See ya later!  
+
+💡 Drop a `help` in the menu for insider tricks!  
+
+---
+
+## **⚙️ Customize Your Ride**  
+
+### **Tune Your Targets!**  
+Tweak `config.json` to pick your app purge. No file? We’ve got you *(non-portable mode only)*.  
+
+**Default Hitlist:**  
+```json
 {
   "AppsToRemove": [
     "Microsoft.SkypeApp", "Microsoft.Teams", "Microsoft.XboxApp", 
@@ -91,28 +116,55 @@ json
     "Microsoft.WindowsCamera"
   ]
 }
-Your Prize Haul!
-📈 Report Card: TurboBoost_Report_YYYYMMDD_HHMMSS.txt (non-portable only)  
-🕵️ Action Log: TurboBoost_Audit_YYYYMMDD_HHMMSS.log  
-🌠 Portable Stash: Logs land in %TEMP%\PCTurboBoost.
-⚠️ Play It Smart
-🔑 Power Up: Admin rights required—use RunTurboBoost.bat to soar!  
-💿 Save Point: Registry backups made pre-tweak (non-portable).  
-🔧 Rewind: Most changes can be undone by hand.  
-🔄 Reboot Alert: App zapping might need a quick restart.
-🤝 Team Up & Tune Up
-Rev It Up Together!
-🍴 Fork It: Grab your own copy.  
-🌿 Branch It: git checkout -b feature-name  
-💾 Commit It: git commit -m "Add feature"  
-🚀 Push It: git push origin feature-name  
-🤲 Share It: Open a Pull Request!
-Got Sparks or Snags? Toss ‘em in Issues—we’re all ears!  
-📜 License
-Free to Fly!
-Licensed under the MIT License—check LICENSE for the fine print.  
-🙌 Shoutouts
-Built with Love!
-Crafted with ❤️ using PowerShell. Inspired by the PC optimization community’s awesomeness!  
+```
 
-This keeps the high-octane vibe flowing from "Launch It Like a Pro" through "Team Up & Tune Up," with punchy titles, playful emojis, and a consistent tone. Copy and paste it into your README.md, and it’ll shine on GitHub! Let me know if you’d like more tweaks.
+---
+
+## **🏆 Your Prize Haul!**  
+- **📄 Report Card:** `TurboBoost_Report_YYYYMMDD_HHMMSS.txt` *(non-portable only)*  
+- **📜 Action Log:** `TurboBoost_Audit_YYYYMMDD_HHMMSS.log`  
+- **📂 Portable Stash:** Logs land in `%TEMP%\PCTurboBoost`  
+
+---
+
+## **🛡 Play It Smart**  
+- **🔑 Power Up:** Admin rights required—use `RunTurboBoost.bat` to soar!  
+- **📦 Save Point:** Registry backups made pre-tweak *(non-portable mode only)*.  
+- **⏪ Rewind:** Most changes can be undone by hand.  
+- **🔄 Reboot Alert:** App zapping might need a quick restart.  
+
+---
+
+## **🤝 Team Up & Tune Up**  
+
+### **Rev It Up Together!**  
+- **🍴 Fork It:** Grab your own copy.  
+- **🌿 Branch It:**  
+  ```bash
+  git checkout -b feature-name
+  ```
+- **💾 Commit It:**  
+  ```bash
+  git commit -m "Add feature"
+  ```
+- **📤 Push It:**  
+  ```bash
+  git push origin feature-name
+  ```
+- **📬 Share It:** Open a **Pull Request**!  
+
+Got sparks or snags? Toss ‘em in [Issues](https://github.com/chaos2024/PCTurboBoost/issues) — we’re all ears!  
+
+---
+
+## **📜 License**  
+
+### **🛫 Free to Fly!**  
+Licensed under the **MIT License** — check `LICENSE` for the fine print.  
+
+---
+
+## **💙 Shoutouts**  
+
+### **✨ Built with Love!**  
+Crafted with ❤️ using **PowerShell**. Inspired by the **PC optimization community’s awesomeness!**  
