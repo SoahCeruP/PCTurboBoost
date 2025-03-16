@@ -1,4 +1,4 @@
-### PCTurboBoost 🚀 
+# PCTurboBoost 🚀 
 PowerShell Windows License
 PCTurboBoost is a PowerShell script designed to optimize and turbocharge your Windows PC by improving performance, removing unnecessary applications, and repairing system issues. It provides a user-friendly interface with modular functions to enhance system health, making it ideal for both casual users and power users.
 
@@ -18,12 +18,12 @@ PCTurboBoost is a PowerShell script designed to optimize and turbocharge your Wi
 - Fix system files, Windows Update issues, and disk errors.
 ***Portable Mode:*** 🧳
 - Run without permanent changes to the system (default).
-- ***Logging:*** 👓
+***Logging:*** 👓
 - Generate detailed reports and audit logs for transparency.
 ***Silent Mode:*** 🛸
 - Automate tasks without user prompts for scripting.
 
-# Prerequisites 🧩
+## Prerequisites 🧩
 Operating System: Windows 10 or 11
 PowerShell: Version 5.1 or later (pre-installed on Windows 10/11)
 ***Administrative Privileges: Required for most operations***
@@ -31,7 +31,7 @@ PowerShell: Version 5.1 or later (pre-installed on Windows 10/11)
 powershell
 $PSVersionTable.PSVersion```
 
-# Installation ⬇️
+## Installation ⬇️
 Clone the repository or download the ZIP file from GitHub:
 bash
 ```git clone https://github.com/chaos2024/PCTurboBoost.git```
@@ -43,7 +43,7 @@ If your system’s PowerShell execution policy is Restricted, the script will pr
 powershell
 ```Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force```
 
-# Usage
+## Usage
 Command Line Options
 Run PCTurboBoost.ps1 directly via PowerShell with optional parameters:
 powershell
@@ -55,7 +55,7 @@ powershell
 -Portable: Run in portable mode, saving logs to %TEMP%\PCTurboBoost (default: enabled).
 -Silent: Automate without prompts (uses defaults).
 
-# Example:
+## Example:
 powershell
 ```.\PCTurboBoost.ps1 -Verbose -Silent
 
@@ -68,7 +68,7 @@ Repair System: Fix system issues (files, updates, disk).
 Exit: Close the script.
 Type help in the menu for detailed instructions.```
 
-# Further Configuration
+### Further Configuration
 The script uses a config.json file to manage the list of apps to remove. If it doesn’t exist, a default list is created (non-portable mode only). Edit it manually or use the "Configure Apps" menu option.
 Default config.json:
 json
