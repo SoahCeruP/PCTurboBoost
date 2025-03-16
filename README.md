@@ -80,14 +80,14 @@ Kick it into gear:
 - 🌆 **`-Portable`** → Leave no trace—logs hit `%TEMP%\PCTurboBoost`.  
 - 🤫 **`-Silent`** → Full autopilot, no chit-chat!  
 
-### **🚀 Turbo Example:**  
+### **Turbo Example:**  
 ```powershell
 .\PCTurboBoost.ps1 -Verbose -Silent
 ```
 
 ---
 
-## **🎛️ Menu Mode: You’re the Boss!**  
+## **Menu Mode: You’re the Boss!**  
 - **🔍 Scan It** → Peek at system vitals.  
 - **⚡ Juice It** → Crank up the speed.  
 - **🗑️ Trash It** → Axe those apps.  
@@ -121,14 +121,14 @@ Tweak `config.json` to pick your app purge. No file? We’ve got you *(non-porta
 
 ---
 
-## **🏆 Your Prize Haul!**  
+## **Your Prize Haul!**  
 - **📄 Report Card:** `TurboBoost_Report_YYYYMMDD_HHMMSS.txt` *(non-portable only)*  
 - **📜 Action Log:** `TurboBoost_Audit_YYYYMMDD_HHMMSS.log`  
 - **📂 Portable Stash:** Logs land in `%TEMP%\PCTurboBoost`  
 
 ---
 
-## **🛡 Play It Smart**  
+## **Play It Smart**  
 - **🔑 Power Up:** Admin rights required—use `RunTurboBoost.bat` to soar!  
 - **📦 Save Point:** Registry backups made pre-tweak *(non-portable mode only)*.  
 - **⏪ Rewind:** Most changes can be undone by hand.  
