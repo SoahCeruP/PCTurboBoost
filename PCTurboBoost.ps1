@@ -211,18 +211,32 @@ if (Test-Path $ConfigFile) {
         exit 1
     }
 } else {
-    $config = [PSCustomObject]@{
-        AppsToRemove = @(
+    # Fetch all installed apps dynamically
+    try {
+        $allApps = Get-AppxPackage -AllUsers -ErrorAction Stop | 
+            Where-Object { $_.IsFramework -eq $false -and $_.SignatureKind -ne "System" } | 
+            Select-Object -ExpandProperty Name | Sort-Object -Unique
+        Write-Audit "Fetched $($allApps.Count) installed apps for default removal list"
+    } catch {
+        Write-Host "Warning: Failed to fetch installed apps for default config - using fallback list" -ForegroundColor Yellow
+        $allApps = @(
             "Microsoft.SkypeApp", "Microsoft.Teams", "Microsoft.XboxApp", "Microsoft.MixedReality.Portal",
             "Microsoft.GetHelp", "Microsoft.People", "Microsoft.WindowsFeedbackHub", "Microsoft.YourPhone",
             "Microsoft.ZuneMusic", "Microsoft.ZuneVideo", "Microsoft.BingNews", "Microsoft.BingWeather",
             "Microsoft.MicrosoftSolitaireCollection", "Microsoft.3DBuilder", "Microsoft.WindowsMaps",
-            "Microsoft.Getstarted", "Microsoft.Messaging", "Microsoft.WindowsCamera"
+            "Microsoft.Getstarted", "Microsoft.Messaging", "Microsoft.WindowsCamera",
+            "Microsoft.Microsoft3DViewer", "Microsoft.549981C3F5F10", "microsoft.windowscommunicationsapps",
+            "Microsoft.OutlookForWindows", "Microsoft.MSPaint", "Microsoft.XboxGamingOverlay"
         )
+    }
+
+    $config = [PSCustomObject]@{
+        AppsToRemove = $allApps
     }
     if (-not $Portable) {
         try {
             $config | ConvertTo-Json | Set-Content $ConfigFile -ErrorAction Stop
+            Write-Audit "Created config file with $($allApps.Count) apps"
         } catch {
             Write-Host "Warning: Failed to create config file '$ConfigFile' - $($_.Exception.Message)" -ForegroundColor Yellow
         }
@@ -331,7 +345,7 @@ function Set-RegistrySettings {
     )
     Write-Report "Adjusting registry settings..." "Success"
 
-    # Define desired optimization settings (key = Path\Name, value = hashtable with Type, Value, Desc)
+    # Define desired optimization settings (unique keys only)
     $desiredSettings = @{
         "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\VisualFXSetting" = @{ Type = "REG_DWORD"; Value = 2; Desc = "Set visual effects to best performance" }
         "HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo\Enabled" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable advertising ID" }
@@ -341,13 +355,22 @@ function Set-RegistrySettings {
         "HKCU\Software\Microsoft\InputPersonalization\RestrictImplicitInkCollection" = @{ Type = "REG_DWORD"; Value = 1; Desc = "Restrict implicit ink collection" }
         "HKCU\Software\Microsoft\InputPersonalization\RestrictImplicitTextCollection" = @{ Type = "REG_DWORD"; Value = 1; Desc = "Restrict implicit text collection" }
         "HKLM\SOFTWARE\Policies\Microsoft\Windows\System\PublishUserActivities" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable user activity publishing" }
-        "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy\LetAppsActivateWithVoice" = @{ Type = "REG_DWORD"; Value = 2; Desc = "Disable voice activation for apps" }
         "HKCU\System\GameConfigStore\GameDVR_Enabled" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable Game DVR" }
         "HKCU\Control Panel\Desktop\MenuShowDelay" = @{ Type = "REG_SZ"; Value = "200"; Desc = "Reduce menu show delay" }
         "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowCopilotButton" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable Copilot taskbar button" }
+        # Taskbar settings
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDa" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable Widgets on taskbar" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarMn" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable Chat on taskbar" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Feeds\ShellFeedsTaskbarViewMode" = @{ Type = "REG_DWORD"; Value = 2; Desc = "Disable News and Interests on taskbar" }
+        # Privacy settings (ensuring no duplicates)
+        "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy\LetAppsActivateWithVoice" = @{ Type = "REG_DWORD"; Value = 2; Desc = "Disable voice activation for apps" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone" = @{ Type = "REG_SZ"; Value = "Deny"; Desc = "Disable microphone access" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam" = @{ Type = "REG_SZ"; Value = "Deny"; Desc = "Disable webcam access" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications\GlobalUserDisabled" = @{ Type = "REG_DWORD"; Value = 1; Desc = "Disable background apps globally" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Search\SearchboxTaskbarMode" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable search box on taskbar" }
     }
 
-    # Paths to scan for existing settings
+    # Paths to scan
     $registryPaths = @(
         "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer",
         "HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo",
@@ -355,7 +378,10 @@ function Set-RegistrySettings {
         "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
         "HKCU\Software\Microsoft\InputPersonalization",
         "HKCU\System\GameConfigStore",
-        "HKCU\Control Panel\Desktop"
+        "HKCU\Control Panel\Desktop",
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Feeds",
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore",
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Search"
     )
 
     $changesMade = $false
@@ -371,9 +397,7 @@ function Set-RegistrySettings {
                         $desired = $desiredSettings[$fullKey]
                         $currentValue = $prop.Value
 
-                        # Compare current value with desired value
                         if ($null -eq $currentValue -or $currentValue -ne $desired.Value) {
-                            # Create path if it doesn’t exist
                             if (-not (Test-Path $path)) {
                                 try {
                                     New-Item -Path $path -Force -ErrorAction Stop | Out-Null
@@ -384,8 +408,6 @@ function Set-RegistrySettings {
                                     continue
                                 }
                             }
-
-                            # Apply the setting
                             try {
                                 $regCommand = "reg add `"$path`" /v `"$($prop.Name)`" /t $($desired.Type) /d $($desired.Value) /f"
                                 Write-Audit "Executing: $regCommand"
@@ -407,10 +429,10 @@ function Set-RegistrySettings {
         }
     }
 
-    # Fallback: Ensure critical settings are applied even if not found
+    # Fallback: Ensure critical settings are applied
     foreach ($key in $desiredSettings.Keys) {
-        $path = $key -replace "\\[^\\]+$", ""  # Extract path
-        $name = $key -split "\\" | Select-Object -Last 1  # Extract name
+        $path = $key -replace "\\[^\\]+$", ""
+        $name = $key -split "\\" | Select-Object -Last 1
         $desired = $desiredSettings[$key]
 
         if (-not (Test-Path $path)) {
@@ -745,7 +767,7 @@ function Remove-OneDrive {
 
 function Uninstall-Apps {
     Write-Report "Removing applications..." "Success"
-    Show-Progress -CurrentStep 4 -TotalSteps 4 -Activity "Processing application removal"
+    Show-Progress -CurrentStep 3 -TotalSteps 4 -Activity "Processing application removal"
     
     # Fetch all installed Appx packages
     try {
@@ -762,70 +784,70 @@ function Uninstall-Apps {
 
     $defaultApps = $config.AppsToRemove
 
-    # Cross-check config against installed apps
-    $installedAppNames = $script:installedApps.Name
-    $invalidApps = $defaultApps | Where-Object { -not ($installedAppNames -contains $_) }
-    if ($invalidApps) {
-        Write-Report "Warning: These apps in config.json are not installed or have mismatched names: $($invalidApps -join ', ')" "Warning"
-        Write-Audit "Invalid/mismatched apps in config: $($invalidApps -join ', ')"
-    }
-
-    # Display available apps with exact package names
-    Write-Report "Applications available for removal (with PackageFullName):" "Success"
+    # Display all installed apps with toggle status
+    Write-Report "Applications available for removal (default: all installed apps):" "Success"
     $appList = @()
-    for ($i = 0; $i -lt $defaultApps.Count; $i++) {
-        $appName = $defaultApps[$i]
-        $installed = $script:installedApps | Where-Object { $_.Name -eq $appName }
-        if ($installed) {
-            $appList += [PSCustomObject]@{ Index = $i + 1; Name = $appName; PackageFullName = $installed.PackageFullName }
-            Write-Host "$($i + 1). $appName (Installed - $($installed.PackageFullName))" -ForegroundColor Green
-        } else {
-            $appList += [PSCustomObject]@{ Index = $i + 1; Name = $appName; PackageFullName = "Not Installed" }
-            Write-Host "$($i + 1). $appName (Not installed)" -ForegroundColor Yellow
-        }
+    for ($i = 0; $i -lt $script:installedApps.Count; $i++) {
+        $app = $script:installedApps[$i]
+        $isInConfig = $defaultApps -contains $app.Name
+        $appList += [PSCustomObject]@{ Index = $i + 1; Name = $app.Name; PackageFullName = $app.PackageFullName; InConfig = $isInConfig }
+        $color = if ($isInConfig) { "Green" } else { "Yellow" }
+        Write-Host "$($i + 1). $($app.Name) ($($app.PackageFullName)) - Remove: $isInConfig" -ForegroundColor $color
     }
 
-    # User selection
-    $validInput = $false
-    while (-not $validInput) {
-        Write-Host "Enter numbers (e.g., '1 3 5') or press Enter for defaults:" -ForegroundColor Magenta
-        $selection = if ($Silent) { "" } else { Read-Host -Prompt "Selection" }
-        
-        if ([string]::IsNullOrWhiteSpace($selection)) {
+    # User selection to toggle apps
+    Write-Host "Enter numbers to toggle removal (e.g., '1 3 5') or press Enter to remove all default apps:" -ForegroundColor Magenta
+    $selection = if ($Silent) { "" } else { Read-Host "Selection" }
+    
+    if ([string]::IsNullOrWhiteSpace($selection)) {
+        $appsToRemove = $script:installedApps | Where-Object { $defaultApps -contains $_.Name }
+    } else {
+        $numbers = $selection -split "\s+" | Where-Object { $_ -ne "" }
+        $newAppsToRemove = $defaultApps | ForEach-Object { $_ }
+        $validInput = $true
+
+        foreach ($num in $numbers) {
+            if (-not ($num -match "^\d+$") -or [int]$num -lt 1 -or [int]$num -gt $appList.Count) {
+                Write-Report "Warning: '$num' is invalid or out of range (1-$($appList.Count)). Ignoring." "Warning"
+                $validInput = $false
+                continue
+            }
+            $index = [int]$num - 1
+            $app = $appList[$index]
+            if ($app.InConfig) {
+                $newAppsToRemove = $newAppsToRemove | Where-Object { $_ -ne $app.Name }
+                Write-Report "Excluded $($app.Name) from removal" "Success"
+            } else {
+                $newAppsToRemove += $app.Name
+                Write-Report "Added $($app.Name) to removal list" "Success"
+            }
+        }
+
+        if ($validInput) {
+            $config.AppsToRemove = $newAppsToRemove | Sort-Object -Unique
+            if (-not $Portable) {
+                try {
+                    $config | ConvertTo-Json | Set-Content $ConfigFile -ErrorAction Stop
+                    Write-Audit "Updated config file with $($newAppsToRemove.Count) apps"
+                } catch {
+                    Write-Report "Error: Failed to update config file - $($_.Exception.Message)" "Error"
+                }
+            }
+            $appsToRemove = $script:installedApps | Where-Object { $newAppsToRemove -contains $_.Name }
+        } else {
+            Write-Report "Invalid input detected. Using default removal list." "Warning"
             $appsToRemove = $script:installedApps | Where-Object { $defaultApps -contains $_.Name }
-            $validInput = $true
-        } else {
-            $numbers = $selection -split "\s+" | Where-Object { $_ -ne "" }
-            $appsToRemove = @()
-            $invalid = $false
-
-            foreach ($num in $numbers) {
-                if (-not ($num -match "^\d+$")) {
-                    Write-Report "Warning: '$num' is not a valid number. Try again." "Warning"
-                    $invalid = $true
-                    break
-                }
-                $index = [int]$num - 1
-                if ($index -lt 0 -or $index -ge $defaultApps.Count) {
-                    Write-Report "Warning: '$num' is out of range (1-$($defaultApps.Count)). Try again." "Warning"
-                    $invalid = $true
-                    break
-                }
-                $selectedApp = $appList | Where-Object { $_.Index -eq ($index + 1) }
-                if ($selectedApp.PackageFullName -ne "Not Installed") {
-                    $appsToRemove += $script:installedApps | Where-Object { $_.PackageFullName -eq $selectedApp.PackageFullName }
-                }
-            }
-
-            if (-not $invalid) {
-                $validInput = $true
-            }
         }
     }
 
-    # Add OneDrive removal before processing Appx packages
-    if ($config.AppsToRemove -contains "Microsoft.OneDrive" -or (Confirm-Action "Remove Microsoft OneDrive?")) {
+    # Check and remove OneDrive only if installed
+    $oneDrivePath = "$env:SystemRoot\SysWOW64\OneDriveSetup.exe"
+    $oneDriveInstalled = Test-Path $oneDrivePath
+    if ($oneDriveInstalled -and ($config.AppsToRemove -contains "Microsoft.OneDrive" -or (-not $Silent -and (Confirm-Action "Remove Microsoft OneDrive?")))) {
         Remove-OneDrive
+    } elseif (-not $oneDriveInstalled) {
+        Write-Report "Microsoft OneDrive is already uninstalled" "Success"
+        Write-Audit "OneDrive not found at $oneDrivePath"
     }
 
     if ($appsToRemove.Count -eq 0) {
@@ -842,11 +864,10 @@ function Uninstall-Apps {
             $currentApp++
             Write-Report "Removing application $($app.Name) (Step $currentApp of $totalApps)..." "Success"
             
-            # Step 1: Remove user-installed package
             try {
                 Write-Audit "Attempting to remove user package: $($app.Name) ($($app.PackageFullName))"
                 Remove-AppxPackage -Package $app.PackageFullName -ErrorAction Stop
-                Start-Sleep -Seconds 5  # Increased wait time for system update
+                Start-Sleep -Seconds 5
                 $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
                 if ($stillInstalled) {
                     Write-Report "Warning: $($app.Name) still detected after initial removal attempt" "Warning"
@@ -858,14 +879,13 @@ function Uninstall-Apps {
                 Write-Audit "User package removal error: $($_.Exception.Message)"
             }
 
-            # Step 2: Remove provisioned package if it exists
             $provisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $app.Name }
             if ($provisioned) {
                 try {
                     Write-Audit "Attempting to remove provisioned package: $($app.Name) ($($provisioned.PackageName))"
                     Remove-AppxProvisionedPackage -Online -PackageName $provisioned.PackageName -ErrorAction Stop
                     $restartRequired = $true
-                    Start-Sleep -Seconds 5  # Wait for system update
+                    Start-Sleep -Seconds 5
                     $stillProvisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $app.Name }
                     if ($stillProvisioned) {
                         Write-Report "Warning: Provisioned package $($app.Name) still detected after removal attempt" "Warning"
@@ -876,18 +896,14 @@ function Uninstall-Apps {
                     Write-Report "Error: Failed to remove provisioned package $($app.Name) - $($_.Exception.Message)" "Error"
                     Write-Audit "Provisioned package removal error: $($_.Exception.Message)"
                 }
-            } else {
-                Write-Audit "No provisioned package found for $($app.Name)"
             }
 
-            # Step 3: Final verification
             $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
             if ($stillInstalled) {
                 Write-Report "Error: $($app.Name) still installed after all attempts" "Error"
                 Write-Audit "Final check failed: $($app.Name) remains installed"
                 if (-not $Silent -and (Confirm-Action "Retry removal of $($app.Name) with force?")) {
                     try {
-                        # Force removal with DISM if available
                         $dismCommand = "DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$($provisioned.PackageName)"
                         Write-Audit "Executing force removal: $dismCommand"
                         Start-Process "cmd.exe" -ArgumentList "/c $dismCommand" -NoNewWindow -Wait -ErrorAction Stop
@@ -911,7 +927,6 @@ function Uninstall-Apps {
             }
         }
 
-        # Step 4: Handle restart
         if ($script:progress.AppsRemoved -gt 0 -or $restartRequired) {
             Write-Host "Restart required to complete application removal." -ForegroundColor Yellow
             $restartChoice = if ($Silent) { "r" } else { Read-Host "Restart now (r) or later (l)? [r/l]" }
@@ -920,12 +935,10 @@ function Uninstall-Apps {
                 Write-Audit "Initiating system restart"
                 Flush-Buffers
                 Restart-Computer -Force
-                # Script pauses here until restart completes
             } else {
                 Write-Report "Please restart to finalize changes. Checking post-restart status..." "Warning"
                 Write-Host "Press Enter after restarting to continue..." -ForegroundColor Magenta
                 if (-not $Silent) { Read-Host }
-                # Verify after manual restart
                 $remainingApps = $appsToRemove | Where-Object { Get-AppxPackage -AllUsers -Name $_.Name }
                 if ($remainingApps) {
                     Write-Report "Error: These apps were not removed after restart: $($remainingApps.Name -join ', ')" "Error"
@@ -942,56 +955,68 @@ function Uninstall-Apps {
 }
 
 function Configure-Apps {
-    Write-Report "`nConfiguration Settings" "Success"
-    Write-Host "Current applications to remove: $($config.AppsToRemove -join ', ')" -ForegroundColor Green
-    Write-Host "Choose mode: 1) Basic, 2) Advanced, or press Enter to add manually:" -ForegroundColor Magenta
+    Write-Report "Configuring applications to remove (Advanced mode)..." "Success"
+    Show-Progress -CurrentStep 4 -TotalSteps 4 -Activity "Configuring apps"
 
-    $mode = if ($Silent) { "2" } else { Read-Host }
-    if ($mode -eq "1") {
-        $config.AppsToRemove = @("Microsoft.SkypeApp", "Microsoft.Teams", "Microsoft.GetHelp", "Microsoft.BingNews")
-        Write-Report "Set to Basic mode" "Success"
-        Write-Audit "Config set to Basic mode: $($config.AppsToRemove -join ', ')"
-    } elseif ($mode -eq "2") {
-        $config.AppsToRemove = @(
-            "Microsoft.SkypeApp", "Microsoft.Teams", "Microsoft.XboxApp", "Microsoft.MixedReality.Portal",
-            "Microsoft.GetHelp", "Microsoft.People", "Microsoft.WindowsFeedbackHub", "Microsoft.YourPhone",
-            "Microsoft.ZuneMusic", "Microsoft.ZuneVideo", "Microsoft.BingNews", "Microsoft.BingWeather",
-            "Microsoft.MicrosoftSolitaireCollection", "Microsoft.3DBuilder", "Microsoft.WindowsMaps",
-            "Microsoft.Getstarted", "Microsoft.Messaging", "Microsoft.WindowsCamera",
-            # New apps added below
-            "Microsoft.Microsoft3DViewer",         # 3D Viewer
-            "Microsoft.549981C3F5F10",            # Cortana
-            "microsoft.windowscommunicationsapps", # Mail and Calendar
-            "Microsoft.OutlookForWindows",         # Outlook (New)
-            "Microsoft.MSPaint",                   # Paint 3D
-            "Microsoft.XboxGamingOverlay"          # Xbox Live (covers most Xbox-related apps)
-            # Note: Microsoft Copilot may need verification; tentatively add "Microsoft.Copilot"
-            # "Microsoft.Copilot"
-        )
-        Write-Report "Set to Advanced mode" "Success"
-        Write-Audit "Config set to Advanced mode: $($config.AppsToRemove -join ', ')"
-    } else {
-        Write-Host "Add an application (e.g., Microsoft.SkypeApp) or press Enter to skip:" -ForegroundColor Magenta
+    # Fetch all installed Appx packages
+    try {
+        $installedApps = Get-AppxPackage -AllUsers -ErrorAction Stop | 
+            Where-Object { $_.IsFramework -eq $false -and $_.SignatureKind -ne "System" } | 
+            Select-Object Name, PackageFullName
+        Write-Report "Retrieved $($installedApps.Count) installed apps" "Success"
+        Write-Audit "Fetched $($installedApps.Count) apps for configuration"
+    } catch {
+        Write-Report "Error: Failed to list installed apps - $($_.Exception.Message)" "Error"
+        Write-Audit "App retrieval error: $($_.Exception.Message)"
+        return
+    }
 
-        $newApp = if ($Silent) { "" } else { Read-Host }
-        if ($newApp) {
-            if ($newApp -match "^[a-zA-Z0-9\._]+$") {
-                $config.AppsToRemove += $newApp
-                Write-Audit "Added application to config: $newApp"
-                Write-Report "Added $newApp to removal list" "Success"
+    # Display all apps and let user select
+    Write-Host "All installed apps (select numbers to add/remove from removal list):" -ForegroundColor Cyan
+    $appList = @()
+    for ($i = 0; $i -lt $installedApps.Count; $i++) {
+        $app = $installedApps[$i]
+        $isInConfig = $config.AppsToRemove -contains $app.Name
+        $appList += [PSCustomObject]@{ Index = $i + 1; Name = $app.Name; PackageFullName = $app.PackageFullName; InConfig = $isInConfig }
+        $color = if ($isInConfig) { "Green" } else { "Yellow" }
+        Write-Host "$($i + 1). $($app.Name) ($($app.PackageFullName)) - In removal list: $isInConfig" -ForegroundColor $color
+    }
+
+    # User selection
+    $selection = if ($Silent) { "" } else { Read-Host "Enter numbers to toggle (e.g., '1 3 5') or press Enter to keep current list" }
+    if (-not [string]::IsNullOrWhiteSpace($selection)) {
+        $numbers = $selection -split "\s+" | Where-Object { $_ -ne "" }
+        $newAppsToRemove = $config.AppsToRemove | ForEach-Object { $_ }
+
+        foreach ($num in $numbers) {
+            if ($num -match "^\d+$" -and [int]$num -ge 1 -and [int]$num -le $appList.Count) {
+                $app = $appList[[int]$num - 1]
+                if ($app.InConfig) {
+                    $newAppsToRemove = $newAppsToRemove | Where-Object { $_ -ne $app.Name }
+                    Write-Report "Removed $($app.Name) from removal list" "Success"
+                } else {
+                    $newAppsToRemove += $app.Name
+                    Write-Report "Added $($app.Name) to removal list" "Success"
+                }
             } else {
-                Write-Report "Error: Invalid application name '$newApp' (use letters, numbers, dots only)" "Warning"
+                Write-Report "Warning: Invalid number '$num'" "Warning"
+            }
+        }
+
+        # Update config
+        $config.AppsToRemove = $newAppsToRemove | Sort-Object -Unique
+        if (-not $Portable) {
+            try {
+                $config | ConvertTo-Json | Set-Content $ConfigFile -ErrorAction Stop
+                Write-Report "Updated config file with new app list" "Success"
+            } catch {
+                Write-Report "Error: Failed to update config file - $($_.Exception.Message)" "Error"
             }
         }
     }
-    Write-Report "Configuration updated" "Success"
-    if (-not $Portable) {
-        try {
-            $config | ConvertTo-Json | Set-Content $ConfigFile -ErrorAction Stop
-        } catch {
-            Write-Report "Warning: Failed to save config - $($_.Exception.Message)" "Warning"
-        }
-    }
+
+    Write-Report "Current apps to remove: $($config.AppsToRemove -join ', ')" "Success"
+    $script:progress.StepsCompleted++
 }
 
 function Repair-System {
@@ -1074,35 +1099,35 @@ function Show-Menu {
     $retryCount = 0
     $maxRetries = 3
     while ($retryCount -lt $maxRetries) {
-    Write-Host "`nPCTurboBoost Menu v$script:Version" -ForegroundColor Cyan
-    Write-Host "1. Check PC" -ForegroundColor Green
-    Write-Host "2. Speed Up" -ForegroundColor Green
-    Write-Host "3. Remove Apps" -ForegroundColor Green
-    Write-Host "4. Configure Apps" -ForegroundColor Green
-    Write-Host "5. Repair System" -ForegroundColor Green
-    Write-Host "6. Exit" -ForegroundColor Green
-    Write-Host "Type 'help' for instructions." -ForegroundColor Yellow
-    $choice = if ($Silent) { "6" } else { Read-Host "Select (1-6)" }
-    if ($choice -eq "help") { Show-Help; continue }
-    if ($choice -match "^[1-6]$") { return $choice }
-        Write-Report "Error: Select 1-6 to proceed" "Warning"
+        Write-Host "`nPCTurboBoost Menu v$script:Version" -ForegroundColor Cyan
+        Write-Host "1. Check PC" -ForegroundColor Green
+        Write-Host "2. Speed Up" -ForegroundColor Green
+        Write-Host "3. Remove Apps" -ForegroundColor Green
+        Write-Host "4. Repair System" -ForegroundColor Green
+        Write-Host "5. Exit" -ForegroundColor Green
+        Write-Host "Type 'help' for instructions." -ForegroundColor Yellow
+        $choice = if ($Silent) { "5" } else { Read-Host "Select (1-5)" }
+        if ($choice -eq "help") { Show-Help; continue }
+        if ($choice -match "^[1-5]$") { return $choice }
+        Write-Report "Error: Select 1-5 to proceed" "Warning"
         $retryCount++
     }
     Write-Report "Too many invalid inputs. Exiting..." "Error"
-    return "6"
+    return "5"
 }
 
 while ($true) {
     $choice = Show-Menu
     switch ($choice) {
-        "1" { Get-SystemInfo; $health = Run-Diagnostics }
-        "2" { Adjust-Performance }
+        "1" { Run-Diagnostics }
+        "2" { Adjust-Performance -Silent:$Silent }
         "3" { Uninstall-Apps }
-        "4" { Configure-Apps }
-        "5" { Repair-System }
-        "6" { Write-Report "Script completed. Exiting..." "Success"; break }
+        "4" { Repair-System }
+        "5" { Write-Report "Exiting PCTurboBoost..." "Success"; Flush-Buffers; exit }
     }
-    if ($choice -eq "6") { break }
+
+
+    if ($choice -eq "5") { break }
     Write-Host "Task completed. Press Enter to continue..." -ForegroundColor Magenta
     if (-not $Silent) { Read-Host }
 }
