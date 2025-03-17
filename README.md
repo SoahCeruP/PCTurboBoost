@@ -1,4 +1,3 @@
-
 # 🚀 **PCTurboBoost**  
 ### *Supercharge Your Windows PC with PowerShell Magic!*  
 
@@ -68,7 +67,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
 ## **🎮 Take the Wheel**  
 
 ### **Blast Off with Commands!**  
-Kick it into gear:  
+*Kick it into gear:*  
 ```powershell
 .\PCTurboBoost.ps1 [-Verbose] [-OutputPath "C:\Path"] [-ConfigFile "custom.json"] [-Portable] [-Silent]
 ```
@@ -95,7 +94,7 @@ Kick it into gear:
 - **🔧 Fix It** → Patch up your PC.  
 - **👋 Bounce** → See ya later!  
 
-Drop a `help` in the menu for insider tricks!  
+*Drop a `help` in the menu for insider tricks!*  
 
 ---
 
@@ -135,7 +134,13 @@ Tweak `config.json` to pick your app purge. No file? We’ve got you *(non-porta
 - **🔄 Reboot Alert:** App zapping might need a quick restart.  
 
 ---
-
+## Recent Updates (March 17, 2025)
+- *Menu Simplified:* Removed "Configure Apps" option; app removal list now defaults to all installed apps in "Remove Apps."
+- *Speed Up Enhancements:* Added "Y to All" option to auto-accept all optimization prompts.
+- *App Removal:* Dynamic default list includes all installed apps, with user toggle support; improved OneDrive uninstall logic.
+- *Privacy & Taskbar:* Disabled Widgets, Chat, News and Interests, voice activation, and additional privacy settings (e.g., mic, webcam access).
+- *Error Fixes:* Resolved parsing errors, missing function issues (e.g., Stop-ServiceIfExists), and reference variable bugs.
+---
 ## **🤝 Team Up & Tune Up**  
 
 ### **Rev It Up Together!**  
