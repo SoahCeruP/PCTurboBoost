@@ -56,11 +56,12 @@ git clone https://github.com/chaos2040/PCTurboBoost.git
 ```  
 Or zip over to the [Releases Page](https://github.com/chaos2040/PCTurboBoost) for **PCTurboBoost.ps1**!  
 
-### **Step 2: Unleash the Power (Optional)**  
-If PowerShell’s locked down, bust it open:  
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
+**Navigate to the folder:**
+```bash
+cd PCTurboBoost
 ```
+**Run the batch file as administrator:**
+Right-click ```RunTurboBoost.bat``` > "Run as administrator"
 
 ---
 
