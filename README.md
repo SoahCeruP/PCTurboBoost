@@ -52,9 +52,9 @@ $PSVersionTable.PSVersion
 ### **Step 1: Snag the Goods!**  
 **Clone or Swipe:**  
 ```bash
-git clone https://github.com/chaos2040/PCTurboBoost.git
+git clone https://github.com/eEuPsOaHc/PCTurboBoost.git
 ```  
-Or zip over to the [Releases Page](https://github.com/chaos2040/PCTurboBoost) for **PCTurboBoost.ps1**!  
+Or zip over to the [Releases Page](https://github.com/eEuPsOaHc/PCTurboBoost) for **PCTurboBoost.ps1**!  
 
 **Navigate to the folder:**
 ```bash
@@ -138,7 +138,7 @@ Right-click ```RunTurboBoost.bat``` > "Run as administrator"
   ```
 - **📬 Share It:** Open a **Pull Request**!  
 
-Got sparks or snags? Toss ‘em in [Issues](https://github.com/chaos2040/PCTurboBoost/issues) — we’re all ears!  
+Got sparks or snags? Toss ‘em in [Issues](https://github.com/eEuPsOaHc/PCTurboBoost/issues) — we’re all ears!  
 
 ---
 
