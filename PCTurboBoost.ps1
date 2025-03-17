@@ -1,4 +1,4 @@
-# Version: 1.0.0
+# Version: 1.0.1
 
 <#
     Startup Guide:
@@ -841,60 +841,77 @@ function Uninstall-Apps {
         foreach ($app in $appsToRemove) {
             $currentApp++
             Write-Report "Removing application $($app.Name) (Step $currentApp of $totalApps)..." "Success"
+            
+            # Step 1: Remove user-installed package
             try {
-                # Attempt to remove the user-installed package
-                Write-Audit "Removing user package: $($app.Name) ($($app.PackageFullName))"
+                Write-Audit "Attempting to remove user package: $($app.Name) ($($app.PackageFullName))"
                 Remove-AppxPackage -Package $app.PackageFullName -ErrorAction Stop
-                # Wait briefly to ensure removal completes
-                Start-Sleep -Seconds 2
-
-                # Verify removal
+                Start-Sleep -Seconds 5  # Increased wait time for system update
                 $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
                 if ($stillInstalled) {
                     Write-Report "Warning: $($app.Name) still detected after initial removal attempt" "Warning"
-                    # Attempt to remove provisioned package
-                    $provisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $app.Name }
-                    if ($provisioned) {
-                        Write-Audit "Removing provisioned package: $($app.Name)"
-                        Remove-AppxProvisionedPackage -Online -PackageName $provisioned.PackageName -ErrorAction Stop
-                        $restartRequired = $true
-                    }
-                    # Re-check after provisioned removal
-                    $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
-                    if ($stillInstalled) {
-                        Write-Report "Error: $($app.Name) could not be fully removed" "Error"
-                        Write-Audit "Failed to remove $($app.Name) after provisioned attempt"
-                    } else {
-                        Write-Report "Removed $($app.Name) (provisioned package)" "Success"
-                        $script:progress.AppsRemoved++
-                    }
                 } else {
-                    Write-Report "Removed $($app.Name)" "Success"
-                    $script:progress.AppsRemoved++
+                    Write-Report "User package $($app.Name) removed successfully" "Success"
                 }
             } catch {
-                Write-Report "Warning: Failed to remove $($app.Name) - $($_.Exception.Message)" "Warning"
-                Write-Audit "Error removing $($app.Name): $($_.Exception.Message)"
-                if (-not $Silent -and (Confirm-Action "Retry removal of $($app.Name)?")) {
+                Write-Report "Error: Failed to remove user package $($app.Name) - $($_.Exception.Message)" "Error"
+                Write-Audit "User package removal error: $($_.Exception.Message)"
+            }
+
+            # Step 2: Remove provisioned package if it exists
+            $provisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $app.Name }
+            if ($provisioned) {
+                try {
+                    Write-Audit "Attempting to remove provisioned package: $($app.Name) ($($provisioned.PackageName))"
+                    Remove-AppxProvisionedPackage -Online -PackageName $provisioned.PackageName -ErrorAction Stop
+                    $restartRequired = $true
+                    Start-Sleep -Seconds 5  # Wait for system update
+                    $stillProvisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $app.Name }
+                    if ($stillProvisioned) {
+                        Write-Report "Warning: Provisioned package $($app.Name) still detected after removal attempt" "Warning"
+                    } else {
+                        Write-Report "Provisioned package $($app.Name) removed successfully" "Success"
+                    }
+                } catch {
+                    Write-Report "Error: Failed to remove provisioned package $($app.Name) - $($_.Exception.Message)" "Error"
+                    Write-Audit "Provisioned package removal error: $($_.Exception.Message)"
+                }
+            } else {
+                Write-Audit "No provisioned package found for $($app.Name)"
+            }
+
+            # Step 3: Final verification
+            $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
+            if ($stillInstalled) {
+                Write-Report "Error: $($app.Name) still installed after all attempts" "Error"
+                Write-Audit "Final check failed: $($app.Name) remains installed"
+                if (-not $Silent -and (Confirm-Action "Retry removal of $($app.Name) with force?")) {
                     try {
-                        Remove-AppxPackage -Package $app.PackageFullName -ErrorAction Stop
+                        # Force removal with DISM if available
+                        $dismCommand = "DISM /Online /Remove-ProvisionedAppxPackage /PackageName:$($provisioned.PackageName)"
+                        Write-Audit "Executing force removal: $dismCommand"
+                        Start-Process "cmd.exe" -ArgumentList "/c $dismCommand" -NoNewWindow -Wait -ErrorAction Stop
+                        Start-Sleep -Seconds 5
                         $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
                         if (-not $stillInstalled) {
-                            Write-Report "Removed $($app.Name) on retry" "Success"
+                            Write-Report "Removed $($app.Name) with force on retry" "Success"
                             $script:progress.AppsRemoved++
+                            $restartRequired = $true
                         } else {
-                            Write-Report "Error: Retry failed for $($app.Name) - still installed" "Error"
+                            Write-Report "Error: Force retry failed for $($app.Name)" "Error"
                         }
                     } catch {
-                        Write-Report "Error: Retry failed for $($app.Name) - $($_.Exception.Message)" "Error"
+                        Write-Report "Error: Force retry failed for $($app.Name) - $($_.Exception.Message)" "Error"
+                        Write-Audit "Force retry error: $($_.Exception.Message)"
                     }
-                } else {
-                    Write-Report "Skipped $($app.Name)" "Warning"
                 }
+            } else {
+                Write-Report "Confirmed: $($app.Name) fully removed" "Success"
+                $script:progress.AppsRemoved++
             }
         }
 
-        # Enforce restart if provisioned packages were removed or apps remain
+        # Step 4: Handle restart
         if ($script:progress.AppsRemoved -gt 0 -or $restartRequired) {
             Write-Host "Restart required to complete application removal." -ForegroundColor Yellow
             $restartChoice = if ($Silent) { "r" } else { Read-Host "Restart now (r) or later (l)? [r/l]" }
@@ -903,17 +920,19 @@ function Uninstall-Apps {
                 Write-Audit "Initiating system restart"
                 Flush-Buffers
                 Restart-Computer -Force
-                # Script will not proceed until restart completes
+                # Script pauses here until restart completes
             } else {
-                Write-Report "Please restart later to finalize changes. Script will pause until restart." "Warning"
+                Write-Report "Please restart to finalize changes. Checking post-restart status..." "Warning"
                 Write-Host "Press Enter after restarting to continue..." -ForegroundColor Magenta
                 if (-not $Silent) { Read-Host }
-                # Re-check apps after user restarts
+                # Verify after manual restart
                 $remainingApps = $appsToRemove | Where-Object { Get-AppxPackage -AllUsers -Name $_.Name }
                 if ($remainingApps) {
-                    Write-Report "Error: These apps were not removed: $($remainingApps.Name -join ', ')" "Error"
+                    Write-Report "Error: These apps were not removed after restart: $($remainingApps.Name -join ', ')" "Error"
                     Write-Audit "Post-restart check: $($remainingApps.Name -join ', ') still installed"
                     return
+                } else {
+                    Write-Report "All selected apps confirmed removed after restart" "Success"
                 }
             }
         }
