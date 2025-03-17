@@ -41,11 +41,38 @@ param (
 
 # Utility Functions
 function Confirm-Action {
-    param ([string]$Message)
-    if ($Silent) { return $true }
-    Write-Host "$Message [Y/n] " -ForegroundColor Magenta -NoNewline
-    $response = Read-Host
-    return ($response -eq "" -or $response -match "^[Yy]$")
+    param (
+        [string]$Message,
+        [switch]$AllYes = $script:AllYes  # Inherit from script scope
+    )
+    if ($Silent -or $AllYes) { return $true }
+    $response = Read-Host "$Message (y/n)"
+    return $response -match "^[Yy]$"
+}
+
+function Stop-ServiceIfExists {
+    param (
+        [string]$ServiceName
+    )
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($service) {
+        if ($service.Status -eq "Running") {
+            try {
+                Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+                Write-Report "Stopped service: ${ServiceName}" "Success"
+                Write-Audit "Service ${ServiceName} stopped"
+            } catch {
+                Write-Report "Error: Failed to stop ${ServiceName} - $($_.Exception.Message)" "Error"
+                Write-Audit "Error stopping ${ServiceName}: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Report "Service ${ServiceName} is already stopped" "Success"
+            Write-Audit "Service ${ServiceName} already stopped"
+        }
+    } else {
+        Write-Report "Service ${ServiceName} not found" "Warning"
+        Write-Audit "Service ${ServiceName} does not exist"
+    }
 }
 
 function Write-Report {
@@ -601,108 +628,81 @@ function Disable-BackgroundApps {
 }
 
 function Adjust-Performance {
-    Write-Report "Optimizing performance..." "Success"
-    Show-Progress -CurrentStep 3 -TotalSteps 4 -Activity "Optimizing performance"
-    if (Confirm-Action "Apply performance optimizations (registry, startups, animations, power)?") {
-        $totalSteps = 4
-        $currentStep = 0
-        $regBackupDir = Join-Path $OutputPath "RegistryBackup_$timestamp"
-        New-Item -Path $regBackupDir -ItemType Directory -Force | Out-Null
-        Write-Report "Backing up registry to $regBackupDir..." "Success"
-        Write-Audit "Backing up registry to $regBackupDir"
-        try {
-        reg export HKCU\Software\Microsoft\Windows\CurrentVersion "$regBackupDir\HKCU.reg" /y 2>$null
-        reg export HKLM\SOFTWARE\Policies\Microsoft\Windows "$regBackupDir\HKLM_Policies.reg" /y 2>$null
-        reg export HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run "$regBackupDir\HKLM_Run.reg" /y 2>$null
-        Write-Report "Registry backup completed" "Success"
-        } catch {
-    Write-Report "Warning: Failed to backup registry - $($_.Exception.Message)" "Warning"
-}
+    param (
+        [switch]$Silent,
+        [switch]$AllYes,
+        [int]$totalSteps = 4,
+        [ref]$currentStep
+    )
+    $script:AllYes = $AllYes
+    Write-Report "Optimizing system performance..." "Success"
+    
+    # Initialize currentStep if not provided
+    if (-not $currentStep) {
+        $localCurrentStep = 1
+        $currentStep = [ref]$localCurrentStep
+    } else {
+        $currentStep.Value = 1
+    }
+    
+    Show-Progress -CurrentStep 2 -TotalSteps $totalSteps -Activity "Optimizing performance"
 
-        Write-Report "`nStarting performance optimizations:" "Success"
-        $currentStep++
-        if (Set-RegistrySettings -totalSteps $totalSteps -currentStep ([ref]$currentStep)) {
+    # Registry tweaks
+    if (Confirm-Action "Apply registry tweaks?" -AllYes:$AllYes) {
+        if (Set-RegistrySettings -totalSteps $totalSteps -currentStep $currentStep) {
             Write-Report "Registry optimization completed" "Success"
         }
-        $currentStep++
-        if (Disable-StartupPrograms -totalSteps $totalSteps -currentStep ([ref]$currentStep)) {
-            Write-Report "Startup program optimization completed" "Success"
-        }
-        $currentStep++
-        if (Disable-Animations -totalSteps $totalSteps -currentStep ([ref]$currentStep)) {
-            Write-Report "Animation optimization completed" "Success"
-        }
-        $currentStep++
-        if (Set-PowerSettings -totalSteps $totalSteps -currentStep ([ref]$currentStep)) {
-            Write-Report "Power settings optimization completed" "Success"
-        }
-
-        if (Confirm-Action "Disable background apps?") {
-            Disable-BackgroundApps
-        }
-
-        # Add network optimization
-        if (Confirm-Action "Optimize network settings?") {
-            Optimize-Network
-        }
     }
 
-    # Ask once for stopping services, outside any loop
-    $stopServices = Confirm-Action "Stop unnecessary background services (including news notifications)?"
+    # Stop unnecessary background services
+    $stopServices = Confirm-Action "Stop unnecessary background services?" -AllYes:$AllYes
     if ($stopServices) {
-        $services = @("XblAuthManager", "WbioSrvc", "SysMain", "DiagTrack", "MapsBroker", "WMPNetworkSvc", "RetailDemo", "WpnUserService")
-        $totalServices = $services.Count
-        $currentService = 0
-        $serviceBackup = @{}
-
-        Write-Report "`nStopping unnecessary services:" "Success"
-        foreach ($svc in $services) {
-            $currentService++
-            Write-Report "Processing service $svc (Step $currentService of $totalServices)..." "Success"
-            $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
-            if ($service) {
-                $dependents = Get-Service -Name $svc -DependentServices | Where-Object { $_.Status -eq "Running" }
-                if ($dependents) {
-                    Write-Report "Warning: $svc has running dependents: $($dependents.Name -join ', '). Skipping." "Warning"
-                    Write-Audit "Skipped $svc due to dependents: $($dependents.Name -join ', ')"
-                    continue
-                }
-                $serviceBackup[$svc] = $service.StartType
-                if ($service.StartType -ne "Disabled") {
-                    try {
-                        Write-Audit "Stopping and disabling service: $svc (Original state: $($service.StartType))"
-                        Stop-Service -Name $svc -Force -ErrorAction Stop
-                        Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
-                        Write-Report "Stopped and disabled service: $svc" "Success"
-                    } catch {
-                        Write-Report "Warning: Failed to stop ${svc} - $($_.Exception.Message)" "Warning"
-                        Write-Audit "Error stopping ${svc}: $($_.Exception.Message)"
-                        $choice = if ($Silent) { "s" } else { Read-Host "Retry (r) or Skip (s)? [r/s]" }
-                        if ($choice -eq "r") {
-                            try {
-                                Stop-Service -Name $svc -Force -ErrorAction Stop
-                                Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
-                                Write-Report "Stopped and disabled ${svc} on retry" "Success"
-                            } catch {
-                                Write-Report "Error: Retry failed for ${svc} - $($_.Exception.Message)" "Error"
-                            }
-                        } else {
-                            Write-Report "Skipped ${svc}" "Warning"
-                        }
-                    }
-                } else {
-                    Write-Report "Service $svc already disabled - skipping" "Warning"
-                }
-            } else {
-                Write-Report "Service $svc not found - skipping" "Warning"
-            }
+        $services = @(
+            "XblAuthManager", "WbioSrvc", "SysMain", "DiagTrack", "MapsBroker", "WMPNetworkSvc", "RetailDemo", "WpnUserService",
+            "dmwappushservice", "DPS", "WSearch", "TabletInputService"
+        )
+        foreach ($service in $services) {
+            Stop-ServiceIfExists -ServiceName $service
         }
-        Write-Audit "Service states backed up: $($serviceBackup | ConvertTo-Json -Compress)"
-        Write-Report "Service optimization completed" "Success"
+        Write-Report "Background services optimization completed" "Success"
+        if ($currentStep) { $currentStep.Value++ }
     }
 
+    # Optimize startup programs
+    if (Confirm-Action "Optimize startup programs?" -AllYes:$AllYes) {
+        try {
+            $startupItems = Get-CimInstance -ClassName Win32_StartupCommand -ErrorAction Stop | 
+                Where-Object { $_.Location -eq "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" -or $_.Location -eq "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" }
+            foreach ($item in $startupItems) {
+                $regPath = if ($item.Location -match "HKCU") { "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" } else { "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" }
+                Remove-ItemProperty -Path $regPath -Name $item.Name -Force -ErrorAction SilentlyContinue
+                Write-Audit "Disabled startup item: $($item.Name)"
+            }
+            Write-Report "Startup programs optimization completed" "Success"
+        } catch {
+            Write-Report "Error: Failed to optimize startup programs - $($_.Exception.Message)" "Error"
+        }
+        if ($currentStep) { $currentStep.Value++ }
+    }
+
+    # Set power settings
+    if (Set-PowerSettings -totalSteps $totalSteps -currentStep $currentStep) {
+        Write-Report "Power settings optimization completed" "Success"
+    }
+
+    # Network optimization
+    if (Confirm-Action "Optimize network settings?" -AllYes:$AllYes) {
+        Optimize-Network
+    }
+
+    # Disable background apps
+    if (Confirm-Action "Disable background apps?" -AllYes:$AllYes) {
+        Disable-BackgroundApps
+    }
+
+    Write-Report "Performance optimization completed" "Success"
     $script:progress.StepsCompleted++
-    Write-Report "`nPerformance optimization finished" "Success"
+    return $true
 }
 
 function Run-DiskCleanup {
@@ -1120,7 +1120,22 @@ while ($true) {
     $choice = Show-Menu
     switch ($choice) {
         "1" { Run-Diagnostics }
-        "2" { Adjust-Performance -Silent:$Silent }
+                "2" { 
+        $currentStep = 0  # Initialize as an integer
+        if ($Silent) {
+            Adjust-Performance -Silent -AllYes -currentStep ([ref]$currentStep)
+        } else {
+            Write-Host "Speed Up Options:" -ForegroundColor Cyan
+            Write-Host "1. Interactive (prompt for each step)" -ForegroundColor Green
+            Write-Host "2. Y to All (accept all optimizations)" -ForegroundColor Green
+            $speedChoice = Read-Host "Select (1-2)"
+            if ($speedChoice -eq "2") {
+                Adjust-Performance -AllYes -currentStep ([ref]$currentStep)
+            } else {
+                Adjust-Performance -currentStep ([ref]$currentStep)
+            }
+        }
+    }
         "3" { Uninstall-Apps }
         "4" { Repair-System }
         "5" { Write-Report "Exiting PCTurboBoost..." "Success"; Flush-Buffers; exit }
