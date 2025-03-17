@@ -1,4 +1,4 @@
-﻿# Version: 1.0.0
+# Version: 1.0.1
 
 <#
     Startup Guide:
@@ -11,13 +11,13 @@ title Launching PCTurboBoost
 net session >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo Requesting administrative privileges...
-    powershell -Command "Start-Process cmd -ArgumentList '/c %~f0' -Verb RunAs"
+    powershell.exe -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
     exit /b
 )
 
 :: Run the PowerShell script with Bypass policy
 echo Starting PCTurboBoost.ps1...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0PCTurboBoost.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0PCTurboBoost.ps1"
 if %ERRORLEVEL% NEQ 0 (
     echo Error: Failed to run PCTurboBoost.ps1. Check the script or permissions.
     pause
@@ -348,6 +348,7 @@ function Set-RegistrySettings {
         @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessEmail"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to email" },
         @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessDiagnostics"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to diagnostics" },
         @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "AllowCortana"; Type = "REG_DWORD"; Value = 0; Desc = "Disable Cortana" },
+        @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; Name = "ShowCopilotButton"; Type = "REG_DWORD"; Value = 0; Desc = "Disable Copilot taskbar button" },
         @{ Path = "HKCU\System\GameConfigStore"; Name = "GameDVR_Enabled"; Type = "REG_DWORD"; Value = 0; Desc = "Disable Game DVR" },
         @{ Path = "HKCU\Control Panel\Desktop"; Name = "MenuShowDelay"; Type = "REG_SZ"; Value = "200"; Desc = "Reduce menu show delay" }
     )
@@ -503,6 +504,44 @@ function Set-PowerSettings {
     return $true
 }
 
+function Optimize-Network {
+    Write-Report "Optimizing network settings..." "Success"
+    try {
+        # Disable Windows Update Delivery Optimization
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" -Name "DODownloadMode" -Value 0 -Type DWord -Force -ErrorAction Stop
+        Write-Report "Disabled Delivery Optimization" "Success"
+        Write-Audit "Set DODownloadMode to 0"
+
+        # Enable TCP Auto-Tuning
+        Start-Process "netsh" -ArgumentList "int tcp set global autotuninglevel=normal" -NoNewWindow -Wait -ErrorAction Stop
+        Write-Report "Enabled TCP Auto-Tuning" "Success"
+        Write-Audit "Set TCP autotuninglevel to normal"
+
+        # Disable Nagle’s Algorithm
+        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
+        Get-ChildItem $regPath | ForEach-Object {
+            Set-ItemProperty -Path "$regPath\$($_.PSChildName)" -Name "TcpNoDelay" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        }
+        Write-Report "Disabled Nagle’s Algorithm" "Success"
+        Write-Audit "Set TcpNoDelay to 1"
+    } catch {
+        Write-Report "Error: Network optimization failed - $($_.Exception.Message)" "Error"
+        Write-Audit "Network optimization error: $($_.Exception.Message)"
+    }
+}
+
+function Disable-BackgroundApps {
+    Write-Report "Disabling background apps..." "Success"
+    try {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" -Name "GlobalUserDisabled" -Value 1 -Type DWord -Force -ErrorAction Stop
+        Write-Report "Disabled background app activity globally" "Success"
+        Write-Audit "Set GlobalUserDisabled to 1"
+    } catch {
+        Write-Report "Error: Failed to disable background apps - $($_.Exception.Message)" "Error"
+        Write-Audit "Background apps error: $($_.Exception.Message)"
+    }
+}
+
 function Adjust-Performance {
     Write-Report "Optimizing performance..." "Success"
     Show-Progress -CurrentStep 3 -TotalSteps 4 -Activity "Optimizing performance"
@@ -538,6 +577,15 @@ function Adjust-Performance {
         $currentStep++
         if (Set-PowerSettings -totalSteps $totalSteps -currentStep ([ref]$currentStep)) {
             Write-Report "Power settings optimization completed" "Success"
+        }
+
+        if (Confirm-Action "Disable background apps?") {
+            Disable-BackgroundApps
+        }
+
+        # Add network optimization
+        if (Confirm-Action "Optimize network settings?") {
+            Optimize-Network
         }
     }
 
@@ -631,42 +679,84 @@ function Run-DiskCleanup {
     }
 }
 
+function Remove-OneDrive {
+    Write-Report "Attempting to remove Microsoft OneDrive..." "Success"
+    try {
+        # Stop OneDrive process
+        Stop-Process -Name "OneDrive" -Force -ErrorAction SilentlyContinue
+        # Uninstall OneDrive (system-wide)
+        $oneDrivePath = "$env:SystemRoot\SysWOW64\OneDriveSetup.exe"
+        if (Test-Path $oneDrivePath) {
+            Write-Audit "Running OneDrive uninstaller: $oneDrivePath /uninstall"
+            Start-Process -FilePath $oneDrivePath -ArgumentList "/uninstall" -NoNewWindow -Wait -ErrorAction Stop
+            Write-Report "Microsoft OneDrive uninstalled successfully" "Success"
+        } else {
+            Write-Report "OneDrive uninstaller not found at $oneDrivePath" "Warning"
+        }
+        # Clean up leftover files
+        Remove-Item "$env:UserProfile\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:LocalAppData\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:ProgramData\Microsoft OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Audit "Cleaned up OneDrive residual files"
+    } catch {
+        Write-Report "Error: Failed to remove OneDrive - $($_.Exception.Message)" "Error"
+        Write-Audit "OneDrive removal error: $($_.Exception.Message)"
+        if (-not $Silent -and (Confirm-Action "Retry OneDrive removal?")) {
+            Remove-OneDrive
+        }
+    }
+}
+
 function Uninstall-Apps {
     Write-Report "Removing applications..." "Success"
     Show-Progress -CurrentStep 4 -TotalSteps 4 -Activity "Processing application removal"
+    
+    # Fetch all installed Appx packages
     try {
-        $script:installedApps = Get-AppxPackage -AllUsers -ErrorAction Stop | Where-Object { $_.IsFramework -eq $false -and $_.SignatureKind -ne "System" } | Select-Object Name, PackageFullName
+        $script:installedApps = Get-AppxPackage -AllUsers -ErrorAction Stop | 
+            Where-Object { $_.IsFramework -eq $false -and $_.SignatureKind -ne "System" } | 
+            Select-Object Name, PackageFullName
+        Write-Report "Successfully retrieved installed app packages" "Success"
+        Write-Audit "Fetched $($script:installedApps.Count) installed Appx packages"
     } catch {
         Write-Report "Error: Failed to list installed applications - $($_.Exception.Message)" "Error"
+        Write-Audit "Package retrieval error: $($_.Exception.Message)"
         return
     }
+
     $defaultApps = $config.AppsToRemove
 
-    $invalidApps = $defaultApps | Where-Object { -not ($script:installedApps.Name -contains $_) }
+    # Cross-check config against installed apps
+    $installedAppNames = $script:installedApps.Name
+    $invalidApps = $defaultApps | Where-Object { -not ($installedAppNames -contains $_) }
     if ($invalidApps) {
-        Write-Report "Warning: These applications in config.json are not installed: $($invalidApps -join ', ')" "Warning"
-        Write-Audit "Invalid applications in config: $($invalidApps -join ', ')"
+        Write-Report "Warning: These apps in config.json are not installed or have mismatched names: $($invalidApps -join ', ')" "Warning"
+        Write-Audit "Invalid/mismatched apps in config: $($invalidApps -join ', ')"
     }
 
-    Write-Report "Applications available for removal:" "Success"
+    # Display available apps with exact package names
+    Write-Report "Applications available for removal (with PackageFullName):" "Success"
+    $appList = @()
     for ($i = 0; $i -lt $defaultApps.Count; $i++) {
-        $app = $defaultApps[$i]
-        $installed = $script:installedApps | Where-Object { $_.Name -eq $app }
+        $appName = $defaultApps[$i]
+        $installed = $script:installedApps | Where-Object { $_.Name -eq $appName }
         if ($installed) {
-            Write-Host "$($i + 1). $app (Installed)" -ForegroundColor Green
+            $appList += [PSCustomObject]@{ Index = $i + 1; Name = $appName; PackageFullName = $installed.PackageFullName }
+            Write-Host "$($i + 1). $appName (Installed - $($installed.PackageFullName))" -ForegroundColor Green
         } else {
-            Write-Host "$($i + 1). $app (Not installed)" -ForegroundColor Yellow
+            $appList += [PSCustomObject]@{ Index = $i + 1; Name = $appName; PackageFullName = "Not Installed" }
+            Write-Host "$($i + 1). $appName (Not installed)" -ForegroundColor Yellow
         }
     }
 
+    # User selection
     $validInput = $false
     while (-not $validInput) {
         Write-Host "Enter numbers (e.g., '1 3 5') or press Enter for defaults:" -ForegroundColor Magenta
-
         $selection = if ($Silent) { "" } else { Read-Host -Prompt "Selection" }
         
         if ([string]::IsNullOrWhiteSpace($selection)) {
-            $appsToRemove = $defaultApps | Where-Object { $script:installedApps.Name -contains $_ }
+            $appsToRemove = $script:installedApps | Where-Object { $defaultApps -contains $_.Name }
             $validInput = $true
         } else {
             $numbers = $selection -split "\s+" | Where-Object { $_ -ne "" }
@@ -685,7 +775,10 @@ function Uninstall-Apps {
                     $invalid = $true
                     break
                 }
-                $appsToRemove += $defaultApps[$index]
+                $selectedApp = $appList | Where-Object { $_.Index -eq ($index + 1) }
+                if ($selectedApp.PackageFullName -ne "Not Installed") {
+                    $appsToRemove += $script:installedApps | Where-Object { $_.PackageFullName -eq $selectedApp.PackageFullName }
+                }
             }
 
             if (-not $invalid) {
@@ -694,41 +787,42 @@ function Uninstall-Apps {
         }
     }
 
+    # Add OneDrive removal before processing Appx packages
+    if ($config.AppsToRemove -contains "Microsoft.OneDrive" -or (Confirm-Action "Remove Microsoft OneDrive?")) {
+        Remove-OneDrive
+    }
+
     if ($appsToRemove.Count -eq 0) {
         Write-Report "No applications selected for removal" "Warning"
         return
     }
 
-    if (Confirm-Action "Remove these applications: $($appsToRemove -join ', ')?") {
+    if (Confirm-Action "Remove these applications: $($appsToRemove.Name -join ', ')?") {
         $totalApps = $appsToRemove.Count
         $currentApp = 0
         foreach ($app in $appsToRemove) {
             $currentApp++
-            Write-Report "Removing application $app (Step $currentApp of $totalApps)..." "Success"
-            $package = $script:installedApps | Where-Object { $_.Name -eq $app }
-            if ($package) {
-                try {
-                    Write-Audit "Removing application: $app"
-                    # Use Start-Process with powershell.exe to ensure synchronous removal
-                    $removeCommand = "Remove-AppxPackage -Package `"$($package.PackageFullName)`" -ErrorAction Stop"
-                    Start-Process "powershell.exe" -ArgumentList "-NoProfile -Command $removeCommand" -Wait -NoNewWindow -ErrorAction Stop
-                    Write-Report "Removed ${app}" "Success"
-                    $script:progress.AppsRemoved++
-                } catch {
-                    Write-Report "Warning: Failed to remove ${app} - $($_.Exception.Message)" "Warning"
-                    Write-Audit "Error removing ${app}: $($_.Exception.Message)"
-                    $choice = if ($Silent) { "s" } else { Read-Host "Retry (r) or Skip (s)? [r/s]" }
-                    if ($choice -eq "r") {
-                        try {
-                            Start-Process "powershell.exe" -ArgumentList "-NoProfile -Command $removeCommand" -Wait -NoNewWindow -ErrorAction Stop
-                            Write-Report "Removed ${app} on retry" "Success"
-                            $script:progress.AppsRemoved++
-                        } catch {
-                            Write-Report "Error: Retry failed for ${app} - $($_.Exception.Message)" "Error"
-                        }
-                    } else {
-                        Write-Report "Skipped ${app}" "Warning"
+            Write-Report "Removing application $($app.Name) (Step $currentApp of $totalApps)..." "Success"
+            try {
+                Write-Audit "Removing application: $($app.Name) ($($app.PackageFullName))"
+                $removeCommand = "Remove-AppxPackage -Package `"$($app.PackageFullName)`" -ErrorAction Stop"
+                Start-Process "powershell.exe" -ArgumentList "-NoProfile -Command $removeCommand" -Wait -NoNewWindow -ErrorAction Stop
+                Write-Report "Removed $($app.Name)" "Success"
+                $script:progress.AppsRemoved++
+            } catch {
+                Write-Report "Warning: Failed to remove $($app.Name) - $($_.Exception.Message)" "Warning"
+                Write-Audit "Error removing $($app.Name): $($_.Exception.Message)"
+                $choice = if ($Silent) { "s" } else { Read-Host "Retry (r) or Skip (s)? [r/s]" }
+                if ($choice -eq "r") {
+                    try {
+                        Start-Process "powershell.exe" -ArgumentList "-NoProfile -Command $removeCommand" -Wait -NoNewWindow -ErrorAction Stop
+                        Write-Report "Removed $($app.Name) on retry" "Success"
+                        $script:progress.AppsRemoved++
+                    } catch {
+                        Write-Report "Error: Retry failed for $($app.Name) - $($_.Exception.Message)" "Error"
                     }
+                } else {
+                    Write-Report "Skipped $($app.Name)" "Warning"
                 }
             }
         }
@@ -765,7 +859,16 @@ function Configure-Apps {
             "Microsoft.GetHelp", "Microsoft.People", "Microsoft.WindowsFeedbackHub", "Microsoft.YourPhone",
             "Microsoft.ZuneMusic", "Microsoft.ZuneVideo", "Microsoft.BingNews", "Microsoft.BingWeather",
             "Microsoft.MicrosoftSolitaireCollection", "Microsoft.3DBuilder", "Microsoft.WindowsMaps",
-            "Microsoft.Getstarted", "Microsoft.Messaging", "Microsoft.WindowsCamera"
+            "Microsoft.Getstarted", "Microsoft.Messaging", "Microsoft.WindowsCamera",
+            # New apps added below
+            "Microsoft.Microsoft3DViewer",         # 3D Viewer
+            "Microsoft.549981C3F5F10",            # Cortana
+            "microsoft.windowscommunicationsapps", # Mail and Calendar
+            "Microsoft.OutlookForWindows",         # Outlook (New)
+            "Microsoft.MSPaint",                   # Paint 3D
+            "Microsoft.XboxGamingOverlay"          # Xbox Live (covers most Xbox-related apps)
+            # Note: Microsoft Copilot may need verification; tentatively add "Microsoft.Copilot"
+            # "Microsoft.Copilot"
         )
         Write-Report "Set to Advanced mode" "Success"
         Write-Audit "Config set to Advanced mode: $($config.AppsToRemove -join ', ')"
