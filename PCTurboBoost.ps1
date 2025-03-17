@@ -144,7 +144,7 @@ function Show-Progress {
 }
 
 # Main Script Logic
-$script:Version = "1.0.0"
+$script:Version = "1.0.1"
 $asciiArt = @"
 
         |
