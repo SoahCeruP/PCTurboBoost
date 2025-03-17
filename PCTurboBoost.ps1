@@ -1,4 +1,4 @@
-# Version: 1.0.1
+# Version: 1.0.0
 
 <#
     Startup Guide:
@@ -11,13 +11,13 @@ title Launching PCTurboBoost
 net session >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo Requesting administrative privileges...
-    powershell.exe -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell -Command "Start-Process cmd -ArgumentList '/c %~f0' -Verb RunAs"
     exit /b
 )
 
 :: Run the PowerShell script with Bypass policy
 echo Starting PCTurboBoost.ps1...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0PCTurboBoost.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0PCTurboBoost.ps1"
 if %ERRORLEVEL% NEQ 0 (
     echo Error: Failed to run PCTurboBoost.ps1. Check the script or permissions.
     pause
@@ -330,74 +330,112 @@ function Set-RegistrySettings {
         [ref]$currentStep
     )
     Write-Report "Adjusting registry settings..." "Success"
-    $regSettings = @(
-        @{ Path = "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"; Name = "VisualFXSetting"; Type = "REG_DWORD"; Value = 2; Desc = "Set visual effects to best performance" },
-        @{ Path = "HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo"; Name = "Enabled"; Type = "REG_DWORD"; Value = 0; Desc = "Disable advertising ID" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection"; Name = "AllowTelemetry"; Type = "REG_DWORD"; Value = 0; Desc = "Disable telemetry" },
-        @{ Path = "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; Name = "Start_TrackProgs"; Type = "REG_DWORD"; Value = 0; Desc = "Disable tracking of program launches" },
-        @{ Path = "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"; Name = "SystemPaneSuggestionsEnabled"; Type = "REG_DWORD"; Value = 0; Desc = "Disable system pane suggestions" },
-        @{ Path = "HKCU\Software\Microsoft\InputPersonalization"; Name = "RestrictImplicitInkCollection"; Type = "REG_DWORD"; Value = 1; Desc = "Restrict implicit ink collection" },
-        @{ Path = "HKCU\Software\Microsoft\InputPersonalization"; Name = "RestrictImplicitTextCollection"; Type = "REG_DWORD"; Value = 1; Desc = "Restrict implicit text collection" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\System"; Name = "PublishUserActivities"; Type = "REG_DWORD"; Value = 0; Desc = "Disable user activity publishing" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsActivateWithVoice"; Type = "REG_DWORD"; Value = 2; Desc = "Disable voice activation for apps" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessAccountInfo"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to account info" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessContacts"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to contacts" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessCalendar"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to calendar" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessPhone"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to phone" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessCallHistory"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to call history" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessEmail"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to email" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; Name = "LetAppsAccessDiagnostics"; Type = "REG_DWORD"; Value = 2; Desc = "Deny apps access to diagnostics" },
-        @{ Path = "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "AllowCortana"; Type = "REG_DWORD"; Value = 0; Desc = "Disable Cortana" },
-        @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; Name = "ShowCopilotButton"; Type = "REG_DWORD"; Value = 0; Desc = "Disable Copilot taskbar button" },
-        @{ Path = "HKCU\System\GameConfigStore"; Name = "GameDVR_Enabled"; Type = "REG_DWORD"; Value = 0; Desc = "Disable Game DVR" },
-        @{ Path = "HKCU\Control Panel\Desktop"; Name = "MenuShowDelay"; Type = "REG_SZ"; Value = "200"; Desc = "Reduce menu show delay" }
+
+    # Define desired optimization settings (key = Path\Name, value = hashtable with Type, Value, Desc)
+    $desiredSettings = @{
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\VisualFXSetting" = @{ Type = "REG_DWORD"; Value = 2; Desc = "Set visual effects to best performance" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo\Enabled" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable advertising ID" }
+        "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection\AllowTelemetry" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable telemetry" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Start_TrackProgs" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable tracking of program launches" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SystemPaneSuggestionsEnabled" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable system pane suggestions" }
+        "HKCU\Software\Microsoft\InputPersonalization\RestrictImplicitInkCollection" = @{ Type = "REG_DWORD"; Value = 1; Desc = "Restrict implicit ink collection" }
+        "HKCU\Software\Microsoft\InputPersonalization\RestrictImplicitTextCollection" = @{ Type = "REG_DWORD"; Value = 1; Desc = "Restrict implicit text collection" }
+        "HKLM\SOFTWARE\Policies\Microsoft\Windows\System\PublishUserActivities" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable user activity publishing" }
+        "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy\LetAppsActivateWithVoice" = @{ Type = "REG_DWORD"; Value = 2; Desc = "Disable voice activation for apps" }
+        "HKCU\System\GameConfigStore\GameDVR_Enabled" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable Game DVR" }
+        "HKCU\Control Panel\Desktop\MenuShowDelay" = @{ Type = "REG_SZ"; Value = "200"; Desc = "Reduce menu show delay" }
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowCopilotButton" = @{ Type = "REG_DWORD"; Value = 0; Desc = "Disable Copilot taskbar button" }
+    }
+
+    # Paths to scan for existing settings
+    $registryPaths = @(
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer",
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo",
+        "HKLM\SOFTWARE\Policies\Microsoft\Windows",
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager",
+        "HKCU\Software\Microsoft\InputPersonalization",
+        "HKCU\System\GameConfigStore",
+        "HKCU\Control Panel\Desktop"
     )
 
     $changesMade = $false
-    foreach ($setting in $regSettings) {
-        # Check if the registry path exists, create it if not
-        $pathExists = Test-Path $setting.Path
-        if (-not $pathExists) {
+
+    # Scan each registry path for existing settings
+    foreach ($path in $registryPaths) {
+        if (Test-Path $path) {
+            $properties = Get-ItemProperty -Path $path -ErrorAction SilentlyContinue
+            if ($properties) {
+                foreach ($prop in $properties.PSObject.Properties) {
+                    $fullKey = "$path\$($prop.Name)"
+                    if ($desiredSettings.ContainsKey($fullKey)) {
+                        $desired = $desiredSettings[$fullKey]
+                        $currentValue = $prop.Value
+
+                        # Compare current value with desired value
+                        if ($null -eq $currentValue -or $currentValue -ne $desired.Value) {
+                            # Create path if it doesn’t exist
+                            if (-not (Test-Path $path)) {
+                                try {
+                                    New-Item -Path $path -Force -ErrorAction Stop | Out-Null
+                                    Write-Audit "Created registry path: ${path}"
+                                } catch {
+                                    Write-Report "Warning: Failed to create path ${path} - $($_.Exception.Message)" "Warning"
+                                    Write-Audit "Error creating path ${path}: $($_.Exception.Message)"
+                                    continue
+                                }
+                            }
+
+                            # Apply the setting
+                            try {
+                                $regCommand = "reg add `"$path`" /v `"$($prop.Name)`" /t $($desired.Type) /d $($desired.Value) /f"
+                                Write-Audit "Executing: $regCommand"
+                                Start-Process "cmd.exe" -ArgumentList "/c $regCommand" -NoNewWindow -Wait -ErrorAction Stop
+                                Write-Report "Applied: $($desired.Desc)" "Success"
+                                Write-Audit "Set ${fullKey} to $($desired.Value)"
+                                $changesMade = $true
+                            } catch {
+                                Write-Report "Error: Failed to set $($desired.Desc) - $($_.Exception.Message)" "Error"
+                                Write-Audit "Error setting ${fullKey}: $($_.Exception.Message)"
+                            }
+                        } else {
+                            Write-Report "Skipped $($desired.Desc) - already set to $($desired.Value)" "Warning"
+                            Write-Audit "Skipped ${fullKey} - already set"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    # Fallback: Ensure critical settings are applied even if not found
+    foreach ($key in $desiredSettings.Keys) {
+        $path = $key -replace "\\[^\\]+$", ""  # Extract path
+        $name = $key -split "\\" | Select-Object -Last 1  # Extract name
+        $desired = $desiredSettings[$key]
+
+        if (-not (Test-Path $path)) {
             try {
-                New-Item -Path $setting.Path -Force -ErrorAction Stop | Out-Null
-                Write-Audit "Created registry path: $($setting.Path)"
+                New-Item -Path $path -Force -ErrorAction Stop | Out-Null
+                Write-Audit "Created registry path: ${path}"
             } catch {
-                Write-Report "Warning: Failed to create path $($setting.Path) - $($_.Exception.Message)" "Warning"
-                Write-Audit "Error creating path $($setting.Path): $($_.Exception.Message)"
+                Write-Report "Warning: Failed to create path ${path} - $($_.Exception.Message)" "Warning"
+                Write-Audit "Error creating path ${path}: $($_.Exception.Message)"
+                continue
             }
         }
 
-        # Check current value
-        $currentValue = Get-ItemProperty -Path $setting.Path -Name $setting.Name -ErrorAction SilentlyContinue
-        $valueExists = $null -ne $currentValue
-        $valueMatches = $valueExists -and ($currentValue.$($setting.Name) -eq $setting.Value)
-
-        if ($valueMatches) {
-            Write-Report "Skipped $($setting.Desc) - already set to $($setting.Value)" "Warning"
-            Write-Audit "Skipped $($setting.Path)\$($setting.Name) - already set"
-        } else {
-            # Build and execute the reg add command
-            $regCommand = "reg add `"$($setting.Path)`" /v `"$($setting.Name)`" /t $($setting.Type) /d $($setting.Value) /f"
+        $currentValue = Get-ItemProperty -Path $path -Name $name -ErrorAction SilentlyContinue
+        if (-not $currentValue -or $currentValue.$name -ne $desired.Value) {
             try {
+                $regCommand = "reg add `"$path`" /v `"$name`" /t $($desired.Type) /d $($desired.Value) /f"
                 Write-Audit "Executing: $regCommand"
                 Start-Process "cmd.exe" -ArgumentList "/c $regCommand" -NoNewWindow -Wait -ErrorAction Stop
-                Write-Report "Applied: $($setting.Desc)" "Success"
-                Write-Audit "Set $($setting.Path)\$($setting.Name) to $($setting.Value)"
+                Write-Report "Applied: $($desired.Desc)" "Success"
+                Write-Audit "Set ${key} to $($desired.Value)"
                 $changesMade = $true
             } catch {
-                Write-Report "Error: Failed to set $($setting.Desc) - $($_.Exception.Message)" "Error"
-                Write-Audit "Error setting $($setting.Path)\$($setting.Name): $($_.Exception.Message)"
-                if (-not $Silent -and (Confirm-Action "Retry $($setting.Desc)?")) {
-                    try {
-                        Start-Process "cmd.exe" -ArgumentList "/c $regCommand" -NoNewWindow -Wait -ErrorAction Stop
-                        Write-Report "Applied on retry: $($setting.Desc)" "Success"
-                        Write-Audit "Set $($setting.Path)\$($setting.Name) to $($setting.Value) on retry"
-                        $changesMade = $true
-                    } catch {
-                        Write-Report "Error: Retry failed for $($setting.Desc) - $($_.Exception.Message)" "Error"
-                        Write-Audit "Retry failed for $($setting.Path)\$($setting.Name): $($_.Exception.Message)"
-                    }
-                }
+                Write-Report "Error: Failed to set $($desired.Desc) - $($_.Exception.Message)" "Error"
+                Write-Audit "Error setting ${key}: $($_.Exception.Message)"
             }
         }
     }
@@ -405,12 +443,10 @@ function Set-RegistrySettings {
     if (-not $changesMade) {
         Write-Report "No registry changes needed - all settings already optimized" "Success"
     }
-    
-    # Increment the current step if provided
+
     if ($currentStep) {
         $currentStep.Value++
     }
-
     return $true
 }
 
@@ -716,7 +752,7 @@ function Uninstall-Apps {
         $script:installedApps = Get-AppxPackage -AllUsers -ErrorAction Stop | 
             Where-Object { $_.IsFramework -eq $false -and $_.SignatureKind -ne "System" } | 
             Select-Object Name, PackageFullName
-        Write-Report "Successfully retrieved installed app packages" "Success"
+        Write-Report "Successfully retrieved $($script:installedApps.Count) installed app packages" "Success"
         Write-Audit "Fetched $($script:installedApps.Count) installed Appx packages"
     } catch {
         Write-Report "Error: Failed to list installed applications - $($_.Exception.Message)" "Error"
@@ -800,24 +836,55 @@ function Uninstall-Apps {
     if (Confirm-Action "Remove these applications: $($appsToRemove.Name -join ', ')?") {
         $totalApps = $appsToRemove.Count
         $currentApp = 0
+        $restartRequired = $false
+
         foreach ($app in $appsToRemove) {
             $currentApp++
             Write-Report "Removing application $($app.Name) (Step $currentApp of $totalApps)..." "Success"
             try {
-                Write-Audit "Removing application: $($app.Name) ($($app.PackageFullName))"
-                $removeCommand = "Remove-AppxPackage -Package `"$($app.PackageFullName)`" -ErrorAction Stop"
-                Start-Process "powershell.exe" -ArgumentList "-NoProfile -Command $removeCommand" -Wait -NoNewWindow -ErrorAction Stop
-                Write-Report "Removed $($app.Name)" "Success"
-                $script:progress.AppsRemoved++
+                # Attempt to remove the user-installed package
+                Write-Audit "Removing user package: $($app.Name) ($($app.PackageFullName))"
+                Remove-AppxPackage -Package $app.PackageFullName -ErrorAction Stop
+                # Wait briefly to ensure removal completes
+                Start-Sleep -Seconds 2
+
+                # Verify removal
+                $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
+                if ($stillInstalled) {
+                    Write-Report "Warning: $($app.Name) still detected after initial removal attempt" "Warning"
+                    # Attempt to remove provisioned package
+                    $provisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $app.Name }
+                    if ($provisioned) {
+                        Write-Audit "Removing provisioned package: $($app.Name)"
+                        Remove-AppxProvisionedPackage -Online -PackageName $provisioned.PackageName -ErrorAction Stop
+                        $restartRequired = $true
+                    }
+                    # Re-check after provisioned removal
+                    $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
+                    if ($stillInstalled) {
+                        Write-Report "Error: $($app.Name) could not be fully removed" "Error"
+                        Write-Audit "Failed to remove $($app.Name) after provisioned attempt"
+                    } else {
+                        Write-Report "Removed $($app.Name) (provisioned package)" "Success"
+                        $script:progress.AppsRemoved++
+                    }
+                } else {
+                    Write-Report "Removed $($app.Name)" "Success"
+                    $script:progress.AppsRemoved++
+                }
             } catch {
                 Write-Report "Warning: Failed to remove $($app.Name) - $($_.Exception.Message)" "Warning"
                 Write-Audit "Error removing $($app.Name): $($_.Exception.Message)"
-                $choice = if ($Silent) { "s" } else { Read-Host "Retry (r) or Skip (s)? [r/s]" }
-                if ($choice -eq "r") {
+                if (-not $Silent -and (Confirm-Action "Retry removal of $($app.Name)?")) {
                     try {
-                        Start-Process "powershell.exe" -ArgumentList "-NoProfile -Command $removeCommand" -Wait -NoNewWindow -ErrorAction Stop
-                        Write-Report "Removed $($app.Name) on retry" "Success"
-                        $script:progress.AppsRemoved++
+                        Remove-AppxPackage -Package $app.PackageFullName -ErrorAction Stop
+                        $stillInstalled = Get-AppxPackage -AllUsers -Name $app.Name -ErrorAction SilentlyContinue
+                        if (-not $stillInstalled) {
+                            Write-Report "Removed $($app.Name) on retry" "Success"
+                            $script:progress.AppsRemoved++
+                        } else {
+                            Write-Report "Error: Retry failed for $($app.Name) - still installed" "Error"
+                        }
                     } catch {
                         Write-Report "Error: Retry failed for $($app.Name) - $($_.Exception.Message)" "Error"
                     }
@@ -827,20 +894,32 @@ function Uninstall-Apps {
             }
         }
 
-        if ($script:progress.AppsRemoved -gt 0) {
+        # Enforce restart if provisioned packages were removed or apps remain
+        if ($script:progress.AppsRemoved -gt 0 -or $restartRequired) {
             Write-Host "Restart required to complete application removal." -ForegroundColor Yellow
-            $restartChoice = if ($Silent) { "l" } else { Read-Host "Restart now (r) or later (l)? [r/l]" }
+            $restartChoice = if ($Silent) { "r" } else { Read-Host "Restart now (r) or later (l)? [r/l]" }
             if ($restartChoice -match "^[Rr]$") {
                 Write-Report "Restarting system..." "Success"
                 Write-Audit "Initiating system restart"
                 Flush-Buffers
                 Restart-Computer -Force
+                # Script will not proceed until restart completes
             } else {
-                Write-Report "Please restart later to finalize changes." "Warning"
+                Write-Report "Please restart later to finalize changes. Script will pause until restart." "Warning"
+                Write-Host "Press Enter after restarting to continue..." -ForegroundColor Magenta
+                if (-not $Silent) { Read-Host }
+                # Re-check apps after user restarts
+                $remainingApps = $appsToRemove | Where-Object { Get-AppxPackage -AllUsers -Name $_.Name }
+                if ($remainingApps) {
+                    Write-Report "Error: These apps were not removed: $($remainingApps.Name -join ', ')" "Error"
+                    Write-Audit "Post-restart check: $($remainingApps.Name -join ', ') still installed"
+                    return
+                }
             }
         }
     }
     $script:progress.StepsCompleted++
+    Write-Report "Application removal process completed" "Success"
 }
 
 function Configure-Apps {
