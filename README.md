@@ -99,28 +99,6 @@ Right-click ```RunTurboBoost.bat``` > "Run as administrator"
 
 ---
 
-## **⚙️ Customize Your Ride**  
-
-### **Tune Your Targets!**  
-Tweak `config.json` to pick your app purge. No file? We’ve got you *(non-portable mode only)*.  
-
-**Default Hitlist:**  
-```json
-{
-  "AppsToRemove": [
-    "Microsoft.SkypeApp", "Microsoft.Teams", "Microsoft.XboxApp", 
-    "Microsoft.MixedReality.Portal", "Microsoft.GetHelp", "Microsoft.People", 
-    "Microsoft.WindowsFeedbackHub", "Microsoft.YourPhone", "Microsoft.ZuneMusic", 
-    "Microsoft.ZuneVideo", "Microsoft.BingNews", "Microsoft.BingWeather", 
-    "Microsoft.MicrosoftSolitaireCollection", "Microsoft.3DBuilder", 
-    "Microsoft.WindowsMaps", "Microsoft.Getstarted", "Microsoft.Messaging", 
-    "Microsoft.WindowsCamera"
-  ]
-}
-```
-
----
-
 ## **Your Prize Haul!**  
 - **📄 Report Card:** `TurboBoost_Report_YYYYMMDD_HHMMSS.txt` *(non-portable only)*  
 - **📜 Action Log:** `TurboBoost_Audit_YYYYMMDD_HHMMSS.log`  
