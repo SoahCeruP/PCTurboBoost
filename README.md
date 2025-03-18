@@ -114,9 +114,7 @@ Right-click ```RunTurboBoost.bat``` > "Run as administrator"
 
 ---
 ## Recent Updates (March 17, 2025)
-- *Menu Simplified:* Removed "Configure Apps" option; app removal list now defaults to all installed apps in "Remove Apps."
-- *Speed Up Enhancements:* Added "Y to All" option to auto-accept all optimization prompts.
-- *App Removal:* Dynamic default list includes all installed apps, with user toggle support; improved OneDrive uninstall logic.
+- Added *"Join Domain"* option to add the device to a network domain.
 - *Privacy & Taskbar:* Disabled Widgets, Chat, News and Interests, voice activation, and additional privacy settings (e.g., mic, webcam access).
 - *Error Fixes:* Resolved parsing errors, missing function issues (e.g., Stop-ServiceIfExists), and reference variable bugs.
 ---
