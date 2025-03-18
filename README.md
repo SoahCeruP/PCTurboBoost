@@ -6,8 +6,6 @@
 ---
 
 ## 🌟 **What’s Inside?**  
-- **🔬 System Diagnostics**  
-  Peek under the hood: Check CPU, disk, and RAM health in a snap!  
 
 - **🏎️ Performance Boost**  
   - Tweak registry settings for speed & privacy.  
