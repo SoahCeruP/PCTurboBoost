@@ -103,23 +103,72 @@ function Join-Domain {
     $script:progress.StepsCompleted++
 }
 
-function Write-Report {
-    param (
-        [string]$Text,
-        [string]$Type = "Success"
-    )
-    $color = switch ($Type) {
-        "Success" { "Green" }
-        "Warning" { "Yellow" }
-        "Error" { "Red" }
+function Optimize-Disk {
+    Write-Report "Optimizing disk..." "Success"
+    Show-Progress -CurrentStep 1 -TotalSteps 5 -Activity "Disk optimization"
+
+    if (-not $Silent -and -not (Confirm-Action "Clean temporary files and Recycle Bin?")) {
+        Write-Report "Temporary file cleanup skipped" "Warning"
+    } else {
+        try {
+            # Exclude PCTurboBoost folder from cleanup
+            $excludeFolder = "$env:TEMP\PCTurboBoost"
+            Get-ChildItem -Path $env:TEMP -Exclude "PCTurboBoost" -Recurse | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+            Write-Report "Temporary files and Recycle Bin cleared (preserved $excludeFolder)" "Success"
+            Write-Audit "Cleared temp files from $env:TEMP (excluded $excludeFolder) and Recycle Bin"
+        } catch {
+            Write-Report "Error: Failed to clean temp files - $($_.Exception.Message)" "Error"
+            Write-Audit "Temp cleanup failed: $($_.Exception.Message)"
+        }
     }
-    Write-Host "$Text" -ForegroundColor $color
-    try {
-        $script:reportBuffer.Add("[$Type] $(Get-Date -Format 'HH:mm:ss') - $Text") | Out-Null
-    } catch {
-        Write-Host "Warning: Failed to log report - $($_.Exception.Message)" -ForegroundColor Yellow
+
+    if (-not $Silent -and -not (Confirm-Action "Optimize drives (defrag HDD, TRIM SSD)?")) {
+        Write-Report "Drive optimization skipped" "Warning"
+    } else {
+        try {
+            $allPartitions = Get-Partition -ErrorAction Stop
+            Write-Audit "Found $($allPartitions.Count) partitions: $(($allPartitions | ForEach-Object { "$($_.DriveLetter) - $($_.OperationalStatus)" }) -join ', ')"
+            
+            $driveLetters = $allPartitions | Where-Object { $_.DriveLetter -match "^[A-Za-z]$" } | Select-Object -ExpandProperty DriveLetter -Unique
+            
+            if (-not $driveLetters) {
+                Write-Report "No valid drives with letters found to optimize" "Warning"
+                Write-Audit "No partitions with valid drive letters detected"
+            } else {
+                Write-Report "Found drives to optimize: $($driveLetters -join ', ')" "Success"
+                foreach ($letter in $driveLetters) {
+                    Optimize-Volume -DriveLetter $letter -Verbose -ErrorAction Stop
+                    Write-Report "Optimized drive $letter" "Success"
+                    Write-Audit "Optimized drive $letter"
+                }
+            }
+        } catch {
+            Write-Report "Error: Failed to optimize drives - $($_.Exception.Message)" "Error"
+            Write-Audit "Drive optimization failed: $($_.Exception.Message)"
+        }
     }
-    if ($Verbose) { Write-Verbose "Details: $Text" }
+
+    Write-Report "Disk optimization completed" "Success"
+    $script:progress.StepsCompleted++
+}
+
+function Write-Audit {
+    param ([string]$Message)
+    if ($script:AuditEnabled) {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $logEntry = "[$timestamp] $Message"
+        try {
+            # Ensure the log directory exists
+            $logDir = Split-Path -Path $script:AuditFile -Parent
+            if (-not (Test-Path $logDir)) {
+                New-Item -Path $logDir -ItemType Directory -Force | Out-Null
+            }
+            Add-Content -Path $script:AuditFile -Value $logEntry -ErrorAction Stop
+        } catch {
+            Write-Host "Error: Failed to write audit log to $($script:AuditFile) - $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
 }
 
 function Write-Audit {
@@ -1128,7 +1177,7 @@ function Show-Menu {
     $maxRetries = 3
     while ($retryCount -lt $maxRetries) {
         Write-Host "`nPCTurboBoost Menu v$script:Version" -ForegroundColor Cyan
-        Write-Host "1. Check PC" -ForegroundColor Green
+        Write-Host "1. Optimize Disk" -ForegroundColor Green
         Write-Host "2. Speed Up" -ForegroundColor Green
         Write-Host "3. Remove Apps" -ForegroundColor Green
         Write-Host "4. Repair System" -ForegroundColor Green
@@ -1148,7 +1197,7 @@ function Show-Menu {
 while ($true) {
     $choice = Show-Menu
     switch ($choice) {
-        "1" { Run-Diagnostics }
+        "1" { Optimize-Disk }
         "2" { 
             $currentStep = 0
             if ($Silent) {
