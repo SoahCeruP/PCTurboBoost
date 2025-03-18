@@ -1,4 +1,4 @@
-# Version: 1.0.1
+# Version: 1.0.2
 
 <#
     Startup Guide:
@@ -73,6 +73,34 @@ function Stop-ServiceIfExists {
         Write-Report "Service ${ServiceName} not found" "Warning"
         Write-Audit "Service ${ServiceName} does not exist"
     }
+}
+
+function Join-Domain {
+    Write-Report "Joining device to a domain..." "Success"
+    Show-Progress -CurrentStep 5 -TotalSteps 5 -Activity "Joining domain"
+
+    if (-not $Silent -and -not (Confirm-Action "Proceed with joining a domain? This may require a restart.")) {
+        Write-Report "Domain join cancelled by user" "Warning"
+        return
+    }
+
+    try {
+        $domain = if ($Silent) { "example.com" } else { Read-Host "Enter domain name (e.g., example.com)" }
+        $username = if ($Silent) { "Administrator" } else { Read-Host "Enter domain username (e.g., DOMAIN\Administrator)" }
+        $password = if ($Silent) { "Password123!" } else { Read-Host "Enter domain password" -AsSecureString }
+        
+        $credential = New-Object System.Management.Automation.PSCredential ($username, $password)
+        Write-Audit "Attempting to join domain: $domain with username: $username"
+
+        Add-Computer -DomainName $domain -Credential $credential -ErrorAction Stop -Restart
+        Write-Report "Successfully joined domain: $domain. Restarting..." "Success"
+        Write-Audit "Device joined to $domain; restart initiated"
+    } catch {
+        Write-Report "Error: Failed to join domain - $($_.Exception.Message)" "Error"
+        Write-Audit "Domain join failed: $($_.Exception.Message)"
+    }
+
+    $script:progress.StepsCompleted++
 }
 
 function Write-Report {
@@ -602,12 +630,12 @@ function Optimize-Network {
         Write-Report "Enabled TCP Auto-Tuning" "Success"
         Write-Audit "Set TCP autotuninglevel to normal"
 
-        # Disable Nagle’s Algorithm
+        # Disable Nagleâ€™s Algorithm
         $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
         Get-ChildItem $regPath | ForEach-Object {
             Set-ItemProperty -Path "$regPath\$($_.PSChildName)" -Name "TcpNoDelay" -Value 1 -Type DWord -ErrorAction SilentlyContinue
         }
-        Write-Report "Disabled Nagle’s Algorithm" "Success"
+        Write-Report "Disabled Nagleâ€™s Algorithm" "Success"
         Write-Audit "Set TcpNoDelay to 1"
     } catch {
         Write-Report "Error: Network optimization failed - $($_.Exception.Message)" "Error"
@@ -1104,47 +1132,44 @@ function Show-Menu {
         Write-Host "2. Speed Up" -ForegroundColor Green
         Write-Host "3. Remove Apps" -ForegroundColor Green
         Write-Host "4. Repair System" -ForegroundColor Green
-        Write-Host "5. Exit" -ForegroundColor Green
+        Write-Host "5. Join Domain" -ForegroundColor Green
+        Write-Host "6. Exit" -ForegroundColor Green
         Write-Host "Type 'help' for instructions." -ForegroundColor Yellow
-        $choice = if ($Silent) { "5" } else { Read-Host "Select (1-5)" }
+        $choice = if ($Silent) { "6" } else { Read-Host "Select (1-6)" }
         if ($choice -eq "help") { Show-Help; continue }
-        if ($choice -match "^[1-5]$") { return $choice }
-        Write-Report "Error: Select 1-5 to proceed" "Warning"
+        if ($choice -match "^[1-6]$") { return $choice }
+        Write-Report "Error: Select 1-6 to proceed" "Warning"
         $retryCount++
     }
     Write-Report "Too many invalid inputs. Exiting..." "Error"
-    return "5"
+    return "6"
 }
 
 while ($true) {
     $choice = Show-Menu
     switch ($choice) {
         "1" { Run-Diagnostics }
-                "2" { 
-        $currentStep = 0  # Initialize as an integer
-        if ($Silent) {
-            Adjust-Performance -Silent -AllYes -currentStep ([ref]$currentStep)
-        } else {
-            Write-Host "Speed Up Options:" -ForegroundColor Cyan
-            Write-Host "1. Interactive (prompt for each step)" -ForegroundColor Green
-            Write-Host "2. Y to All (accept all optimizations)" -ForegroundColor Green
-            $speedChoice = Read-Host "Select (1-2)"
-            if ($speedChoice -eq "2") {
-                Adjust-Performance -AllYes -currentStep ([ref]$currentStep)
+        "2" { 
+            $currentStep = 0
+            if ($Silent) {
+                Adjust-Performance -Silent -AllYes -currentStep ([ref]$currentStep)
             } else {
-                Adjust-Performance -currentStep ([ref]$currentStep)
+                Write-Host "Speed Up Options:" -ForegroundColor Cyan
+                Write-Host "1. Interactive (prompt for each step)" -ForegroundColor Green
+                Write-Host "2. Y to All (accept all optimizations)" -ForegroundColor Green
+                $speedChoice = Read-Host "Select (1-2)"
+                if ($speedChoice -eq "2") {
+                    Adjust-Performance -AllYes -currentStep ([ref]$currentStep)
+                } else {
+                    Adjust-Performance -currentStep ([ref]$currentStep)
+                }
             }
         }
-    }
         "3" { Uninstall-Apps }
         "4" { Repair-System }
-        "5" { Write-Report "Exiting PCTurboBoost..." "Success"; Flush-Buffers; exit }
+        "5" { Join-Domain }
+        "6" { Write-Report "Exiting PCTurboBoost..." "Success"; Flush-Buffers; exit }
     }
-
-
-    if ($choice -eq "5") { break }
-    Write-Host "Task completed. Press Enter to continue..." -ForegroundColor Magenta
-    if (-not $Silent) { Read-Host }
 }
 
 # Summary Report
