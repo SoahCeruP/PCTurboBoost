@@ -50,7 +50,7 @@ $PSVersionTable.PSVersion
 ### **Step 1: Snag the Goods!**  
 **Clone or Swipe:**  
 ```bash
-git clone https://github.com/eEuPsOaHc/PCTurboBoost.git
+git clone https://github.com/SoahCeruP/PCTurboBoost.git
 ```  
 Or zip over to the [Releases Page](https://github.com/SoahCeruP/PCTurboBoost) for **PCTurboBoost.ps1**!  
 
