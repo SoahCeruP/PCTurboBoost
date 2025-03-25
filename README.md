@@ -52,7 +52,7 @@ $PSVersionTable.PSVersion
 ```bash
 git clone https://github.com/eEuPsOaHc/PCTurboBoost.git
 ```  
-Or zip over to the [Releases Page](https://github.com/eEuPsOaHc/PCTurboBoost) for **PCTurboBoost.ps1**!  
+Or zip over to the [Releases Page](https://github.com/SoahCeruP/PCTurboBoost) for **PCTurboBoost.ps1**!  
 
 **Navigate to the folder:**
 ```bash
@@ -134,7 +134,7 @@ Right-click ```RunTurboBoost.bat``` > "Run as administrator"
   ```
 - **📬 Share It:** Open a **Pull Request**!  
 
-Got sparks or snags? Toss ‘em in [Issues](https://github.com/eEuPsOaHc/PCTurboBoost/issues) — we’re all ears!  
+Got sparks or snags? Toss ‘em in [Issues](https://github.com/SoahCeruP/PCTurboBoost/issues) — we’re all ears!  
 
 ---
 
